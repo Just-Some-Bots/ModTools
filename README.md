@@ -10,6 +10,7 @@ these tools.
 ## How do I set it up?
 
 Install Python here - https://www.python.org/downloads/
+
 Install Git here - https://git-scm.com/download/win
 
 It was coded in 3.5.1 but 3.5 will work fine.
