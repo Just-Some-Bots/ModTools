@@ -25,15 +25,25 @@ Create a roll on your server named "Muted" with that exact capitilization and se
 
 
   Options.txt set up
+  
 Line 1: the email of your discord account
+
 Line 2: the password of your discord account
+
   (The next four are messages sent when something is filtered. Its currently set up for anti Force Awakens)
+  
 Line 3: Sent if a user is whitelisted send them this message if they break the filter
+
 Line 4: Sent if a user broke the filter for the first time; deletes user's message
+
 Line 5: Sent if a user broke the filter for the 2nd time; deletes user's message and kicks them from the filter
+
 Line 6: Sent if a user broke the filter for the 3nd time; deletes user's entire message history and bans them from the server
+
 Line 7: Number of days required to be on the server until you're except from the filter. Setting at 0 disables the filter.
+
 Line 8: Accepts True or False. Decides whether to keep the whitelist clean and remove people who are now except from the filter
+
 Line 9: Whether or not to send a message to people who are whitelisted by a moderator.
 
 
