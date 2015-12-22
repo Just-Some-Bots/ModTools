@@ -2,7 +2,6 @@ import asyncio
 import discord
 import re
 import datetime
-import youtube_dl
 
 client = discord.Client()
 
@@ -158,7 +157,7 @@ def on_message(message):
     try:
         if is_long_member(message.author.joined_at):
             this = message.author.id
-            if this in whitelist and options[7] == '1':
+            if this in whitelist and options[7] == 'True':
                 while this in whitelist: whitelist.remove(this)
                 f = open('whitelist.txt', 'w')
                 for line in whitelist:
@@ -167,12 +166,13 @@ def on_message(message):
         else:
             if msg in bannedwords:
                 if message.author.id in whitelist:
-                    yield from client.send_message(message.author, options[2]+'\n\n'+options[6])
+                    if options[8] == '1':
+                        yield from client.send_message(message.author, options[2]+'\n\n')
                 elif message.author.id in userbans:
                     yield from client.delete_message(message)
                     yield from client.ban(message.author)
                     try:
-                        yield from client.send_message(message.author, options[5]+'\n\n'+options[6])
+                        yield from client.send_message(message.author, options[5]+'\n\n')
                     except:
                         print('Couldn\'t send message')
                     do_log(message.author.name,message.content, False)
@@ -184,7 +184,7 @@ def on_message(message):
                     yield from client.delete_message(message)
                     yield from client.kick(message.author)
                     try:
-                        yield from client.send_message(message.author, options[4]+'\n\n'+options[6])
+                        yield from client.send_message(message.author, options[4]+'\n\n')
                     except:
                         print('Couldn\'t send message')
                     do_log(message.author.name,message.content, False)
@@ -195,7 +195,7 @@ def on_message(message):
                 else:
                     yield from client.delete_message(message)
                     try:
-                        yield from client.send_message(message.author, options[3]+'\n\n'+options[6])
+                        yield from client.send_message(message.author, options[3]+'\n\n')
                     except:
                         print('Couldn\'t send message')
                     do_log(message.author.name,message.content, False)
@@ -234,7 +234,7 @@ def is_long_member(dateJoined):
     try:
         convDT = dateJoined.date()
         today = datetime.date.today()
-        margin = datetime.timedelta(days = 5)
+        margin = datetime.timedelta(days = options[6])
         return today - margin > convDT
     except:
         return False
