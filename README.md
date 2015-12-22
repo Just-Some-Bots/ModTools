@@ -24,7 +24,7 @@ both discord.
 Create a roll on your server named "Muted" with that exact capitilization and set it's speak permission to denied on every channel.
 
 
-  Options.txt set up
+##Options.txt set up
   
 Line 1: the email of your discord account
 
