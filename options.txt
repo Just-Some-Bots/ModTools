@@ -1,5 +1,5 @@
-[ENTER EMAIL HERE]
-[ENTER PASSWORD HERE]
+ENTER EMAIL HERE
+ENTER PASSWORD HERE
 Your message: `{}` was flagged for possibly having Star Wars spoilers. No action will be taken however due to you being tagged in the whitelist! Remember, spoilers will result in kicks and bans!
 Your message: `{}` has been deleted due to suspected spoilers from the new movie, Star Wars: The Force Awakens.Only one warning is given before kicks or bans occur. Please respond if you belive this is in error
 Your message: `{}` has been deleted due to suspected spoilers from the new movie, Star Wars: The Force Awakens and you have been kicked for repeated offenses. Please respond if you belive this is in error
