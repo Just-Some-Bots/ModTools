@@ -12,6 +12,7 @@ class Config(object):
         self.master_id = config.get('Permissions', 'OwnerID', fallback=None)
         self.command_prefix = config.get('Chat', 'CommandPrefix', fallback='!')
 
+        # TODO: make this work right and not have a file hanging out in root directory
         self.globalbans_file = config.get('Files', 'GlobalBansFile', fallback='globalbans.txt')
 
         # Validation logic for bot settings.
