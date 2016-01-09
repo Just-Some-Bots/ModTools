@@ -1,0 +1,9 @@
+[Credentials]
+Username = username@email.com
+Password = borked_is_a_nerd
+
+[Permissions]
+OwnerID = 112233445566778
+
+[Chat]
+CommandPrefix = !
