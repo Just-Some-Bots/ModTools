@@ -2,6 +2,7 @@ import re
 import json
 
 from fuzzywuzzy import fuzz
+from slugify import slugify
 
 _USER_ID_MATCH = re.compile(r'<@(\d+)>')
 
@@ -61,6 +62,14 @@ def strict_compare_strings(string_one, string_two):
     if fuzz.token_set_ratio(string_one, string_two)>highest_ratio:
         highest_ratio = fuzz.token_set_ratio(string_one, string_two)
     return highest_ratio
+
+def do_slugify(string):
+    replacements = (('4', 'a'), ('3', 'e'), ('1', 'l'), ('0', 'o'), ('7', 't'), ('5', 's'))
+    for old, new in replacements:
+        string = string.replace(old, new)
+    slugify(string, separator='_')
+    return string
+
 
 def compare_strings(string_one, string_two):
     highest_ratio = 0

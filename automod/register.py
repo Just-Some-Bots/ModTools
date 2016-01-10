@@ -123,7 +123,7 @@ class Register(object):
         else:
             args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
         return Response('Okay, got it. Added {} to the list of black listed strings! Next up is the action to be taken upon finding a '
-                        'blacklisted word! \nI\'ll take `kick / ban / mute / nothing` as input for this option!'
+                        'blacklisted word or if a person is rate limited over 4 times! \nI\'ll take `kick / ban / mute / nothing` as input for this option!'
                         ' \n\t`example input: \"mute\"`'.format(
                             args
                         ),

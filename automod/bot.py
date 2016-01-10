@@ -6,20 +6,22 @@ import os
 import re
 
 from functools import wraps
-from slugify import slugify
+
+from fuzzywuzzy import fuzz
 from datetime import datetime, timedelta
 
 from automod.config import Config
 from automod.register import Register
 from automod.response import Response
 from automod.version import VERSION
-from automod.utils import load_json, extract_user_id, write_json, load_file, write_file, compare_strings, strict_compare_strings
+from automod.utils import load_json, extract_user_id, write_json, load_file, write_file, compare_strings, do_slugify
 
 from .exceptions import CommandError
 from .constants import BOT_HANDLER_ROLE, RHINO_SERVER, RHINO_SERVER_CHANNEL
 
 def backup_config(server_config_list):
     for key, current_config in server_config_list.items():
+        current_config[11] = {}
         savedir = 'configs\\'+str(key)
         if not os.path.exists(savedir):
             os.makedirs(savedir)
@@ -60,28 +62,30 @@ class AutoMod(discord.Client):
                 server_index[name] = load_json(fileroute)
         return server_index
 
-    def has_roles(self, user, server, register=False):
-        if register is False and server.id not in self.server_index:
-            return
-        if len(server.roles) != 1:
-            for role in user.roles:
-                if server.id in self.server_index:
-                    if role in self.server_index[server.id][14] or user.id in self.server_index[server.id][15]:
+    def has_roles(self, user, check_server, register=False):
+        if register is False:
+            if check_server.id not in self.server_index:
+                return
+        if len(check_server.roles) != 1:
+            try:
+                for role in user.roles:
+                    if role.id in self.server_index[check_server.id][14] or user.id in self.server_index[check_server.id][15] or role.name.lower() == BOT_HANDLER_ROLE.lower():
                         return True
-                elif role.name.lower() == BOT_HANDLER_ROLE.lower():
-                    return True
-            return False
+            except:
+                return False
         else:
-            raise CommandError('No roles detected on server {}'.format(server.name))
+            raise CommandError('No roles detected on server {}'.format(check_server.name))
 
     def is_checked(self, user, server):
         for role in user.roles:
             if server.id in self.server_index:
-                if role in self.server_index[server.id][3] or user.id in self.server_index[server.id][4]:
+                if role.name in self.server_index[server.id][3] or user.id in self.server_index[server.id][4]:
                     return False
         return True
 
     def is_long_member(self, date_joined, server):
+        if server.id not in self.server_index:
+            return
         config = self.server_index[server.id]
         try:
             today = datetime.utcnow()
@@ -90,28 +94,39 @@ class AutoMod(discord.Client):
         except:
             return False
 
-    def strict_limit_post(self, author, server, content):
+    def strict_limit_post(self, author, server, content, flg=None):
         config = self.server_index[server.id]
         author_index = config[11][author.id]
         last_post_time = author_index[0]
         last_timeframe_content = author_index[2]
-        content = slugify(content, separator='_')
         now = datetime.utcnow()
 
-        match = re.search('^[a-zA-Z0-9_.-]{10,}$', content)
-        match2 = re.search('\n{5,}', content)
-        if match or match2:
+        match2 = re.split("[\n]{4,}", content)
+        match = re.split(r"(.)\1{9,}", content)
+
+        if len(match) > 1 or len(match2) > 1:
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
             return True
 
-        if content in last_timeframe_content and now - last_post_time < timedelta(minutes=10):
+        content = do_slugify(content)
+
+        match2 = re.split("[\n]{4,}", content)
+        match = re.split(r"(.)\1{9,}", content)
+
+        if len(match) > 1 or len(match2) > 1:
+            author_index[1] -= 1
+            self.server_index[server.id][11][author.id] = author_index
+            return True
+
+        if now - last_post_time < timedelta(minutes=10 and not flg):
             for last_content in last_timeframe_content:
-                if strict_compare_strings(last_content, content) > 75:
+                if compare_strings(last_content, content) > 70:
                     author_index[1] -= 1
                     self.server_index[server.id][11][author.id] = author_index
                     return True
-        elif now - last_post_time < timedelta(seconds=config[2]):
+
+        if now - last_post_time < timedelta(seconds=config[2]):
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
             if author_index[1] <= 0:
@@ -122,30 +137,41 @@ class AutoMod(discord.Client):
         self.server_index[server.id][11][author.id] = author_index
         return False
 
-    def limit_post(self, author, server, content):
+    def limit_post(self, author, server, content, flg=None):
         config = self.server_index[server.id]
         author_index = config[11][author.id]
         last_post_time = author_index[0]
         last_timeframe_content = author_index[2]
-        content = slugify(content, separator='_')
         now = datetime.utcnow()
-        if content in last_timeframe_content and now - last_post_time < timedelta(minutes=10):
+
+        match2 = re.split("[\n]{4,}", content)
+        match = re.split(r"(.)\1{9,}", content)
+
+        if match or match2:
+            author_index[1] -= 1
+            self.server_index[server.id][11][author.id] = author_index
+            return True
+
+        content = do_slugify(content)
+        if now - last_post_time < timedelta(minutes=10 and not flg):
             for last_content in last_timeframe_content:
-                if compare_strings(last_content, content) > 95:
+                if compare_strings(last_content, content) > 80:
                     author_index[1] -= 1
                     self.server_index[server.id][11][author.id] = author_index
                     return True
-        elif now - last_post_time < timedelta(seconds=config[2] - 1):
+
+        if now - last_post_time < timedelta(seconds=config[2]-1):
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
             if author_index[1] <= 0:
+
                 return True
         else:
+            author_index[0] = now
             author_index[1] = config[1]+2
             author_index[2] = []
         self.server_index[server.id][11][author.id] = author_index
         return False
-                
 
     async def on_ready(self):
         print('Connected!\n')
@@ -171,17 +197,28 @@ class AutoMod(discord.Client):
         await self.backup_list()
 
     async def write_to_modlog(self, message, author, server, reason):
-        if message.server.id in self.server_index:
-            config = self.server_index[message.server.id]
+        if server.id in self.server_index:
+            config = self.server_index[server.id]
         else:
             return
         if not config[8] or not config[10]:
             return
         if not reason:
             reason = "***No Reason Specified***"
-        await self.send_message(discord.Object(id=config[8]),'At *{}*, **{}** has used the command ```{}```Reason: `{}`'
-                                                             ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), author, message.content, reason))
+        await self.send_message(discord.Object(id=config[8]), 'At *{}*, **{}** has used the command ```{}```Reason: `{}`'
+                                                              ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), author, message.content, reason))
 
+    async def _write_to_modlog(self, autoaction, offender, server, reason):
+        if server.id in self.server_index:
+            config = self.server_index[server.id]
+        else:
+            return
+        if not config[8] or not config[10]:
+            return
+        if not reason:
+            reason = "***No Reason Specified***"
+        await self.send_message(discord.Object(id=config[8]), 'At *{}*, I automatically {} **{}** for {}'
+                                                              ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), autoaction, offender, reason))
 
     # TODO: Make this good code that is mine, not stuff taken from old pre async branch code written by @Sharpwaves
     async def do_server_log(self, message=None, flag=None, member=None, before=None, after=None):
@@ -232,11 +269,11 @@ class AutoMod(discord.Client):
                                                                       '--------------------------------------**'
                                                                       ''.format(member.name.upper()))
             elif flag == 'edit':
-                if message.server.id in self.server_index:
-                    config = self.server_index[message.server.id]
+                if before.server.id in self.server_index:
+                    config = self.server_index[before.server.id]
                 else:
                     return
-                if message.channel.id in config[12]:
+                if before.channel.id in config[12]:
                     return
                 if not config[9]:
                     return
@@ -276,6 +313,8 @@ class AutoMod(discord.Client):
         If the user who starts the registration has the `AutoManager` role, start the registration process.
         """
         if self.has_roles(author, server, register=True):
+            if author.id == self.user.id:
+                return True
             if server.id in self.server_index:
                 return Response('your server is already registered!', reply=True)
             error_response = ''
@@ -300,16 +339,16 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}mute @UserName <time> <reason>
         Mute the user indefinitley unless given a time, then only mute till the time is up
         """
-        if self.has_roles(message.author, server):
+        if self.has_roles(author, server):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
             if time and not reason and not time.isdigit():
                 reason = time
                 time = None
-            await self.write_to_modlog(message, author, message.server, reason)
-            asshole = discord.utils.get(message.server.members, id=user_id)
-            mutedrole = discord.utils.get(message.server.roles, name='Muted')
+            await self.write_to_modlog(message, author, server, reason)
+            asshole = discord.utils.get(server.members, id=str(user_id))
+            mutedrole = discord.utils.get(server.roles, name='Muted')
             if not mutedrole:
                 raise CommandError('No Muted role created')
             try:
@@ -317,7 +356,7 @@ class AutoMod(discord.Client):
             except:
                 raise CommandError('Unable to mute user defined:\n{}\n'.format(username))
             if time:
-                await asyncio.sleep(time)
+                await asyncio.sleep(float(time))
                 muteeroles = asshole.roles
                 if mutedrole in muteeroles:
                     muteeroles.remove(mutedrole)
@@ -332,9 +371,9 @@ class AutoMod(discord.Client):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
-            await self.write_to_modlog(message, author, message.server, reason)
-            reformedDick = discord.utils.get(message.server.members, id=user_id)
-            mutedrole = discord.utils.get(message.server.roles, name='Muted')
+            await self.write_to_modlog(message, author, server, reason)
+            reformedDick = discord.utils.get(server.members, id=str(user_id))
+            mutedrole = discord.utils.get(server.roles, name='Muted')
             muteeroles = reformedDick.roles
             if mutedrole in muteeroles:
                 muteeroles.remove(mutedrole)
@@ -352,9 +391,9 @@ class AutoMod(discord.Client):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
-            await self.write_to_modlog(message, author, message.server, reason)
-            user = discord.utils.get(message.server.members, id=user_id)
-            role = discord.utils.get(message.server.roles, name=rolename)
+            await self.write_to_modlog(message, author, server, reason)
+            user = discord.utils.get(server.members, id=str(user_id))
+            role = discord.utils.get(server.roles, name=rolename)
             if not role:
                 raise CommandError('No role named `{}` exists!'.format(rolename))
             try:
@@ -371,9 +410,9 @@ class AutoMod(discord.Client):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
-            await self.write_to_modlog(message, author, message.server, reason)
-            user = discord.utils.get(message.server.members, id=user_id)
-            role = discord.utils.get(message.server.roles, name=rolename)
+            await self.write_to_modlog(message, author, server, reason)
+            user = discord.utils.get(server.members, id=str(user_id))
+            role = discord.utils.get(server.roles, name=rolename)
             stopdroprole = user.roles
             if role in stopdroprole:
                 stopdroprole.remove(role)
@@ -382,7 +421,7 @@ class AutoMod(discord.Client):
             except:
                 raise CommandError('Unable remove the role `{}` from user {}'.format(rolename, username))
 
-    async def handle_purge(self, message, author, server, count, username=None, reason=None):
+    async def handle_purge(self, message, author, server, channel, count, username=None, reason=None):
         """
         Usage: {command_prefix}purge <# to purge> @UserName <reason>
         Removes all messages from chat unless a user is specified;
@@ -392,23 +431,23 @@ class AutoMod(discord.Client):
             if username and not reason and not username.startswith('<@'):
                 reason = username
                 username = None
-            await self.write_to_modlog(message, author, message.server, reason)
+            await self.write_to_modlog(message, author, server, reason)
             if not username:
-                logs = await self.logs_from(message.channel, int(count))
+                logs = await self.logs_from(channel, int(count))
                 for msg in logs:
                     await self.delete_message(msg)
             else:
                 user_id = extract_user_id(username)
                 if not user_id:
                     raise CommandError('Invalid user specified')
-                culprit = discord.utils.find(lambda m: m.id == user_id, message.server.members)
-                logs = await self.logs_from(message.channel)
+                culprit = discord.utils.get(server.members, id=str(user_id))
+                logs = await self.logs_from(channel)
                 for msg in logs:
                     if msg.author.id == culprit.id:
                         await self.delete_message(msg)
         # ALLOWS USERS TO REMOVE THEIR MESSAGES EVEN IF THEY AREN'T A MOD
         # elif not username:
-        #     logs = await self.logs_from(message.channel, int(count))
+        #     logs = await self.logs_from(channel, int(count))
         #     for msg in logs:
         #         if msg.author == author:
         #             await self.delete_message(msg)
@@ -422,8 +461,8 @@ class AutoMod(discord.Client):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
-            await self.write_to_modlog(message, author, message.server, reason)
-            member = discord.utils.get(server.members, id=user_id)
+            await self.write_to_modlog(message, author, server, reason)
+            member = discord.utils.get(server.members, id=str(user_id))
             self.ban(member, 7)
 
     async def handle_kick(self, message, author, server, username, reason=None):
@@ -435,8 +474,8 @@ class AutoMod(discord.Client):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
-            await self.write_to_modlog(message, author, message.server, reason)
-            member = discord.utils.get(server.members, id=user_id)
+            await self.write_to_modlog(message, author, server, reason)
+            member = discord.utils.get(server.members, id=str(user_id))
             self.kick(member)
 
     async def handle_whitelist(self, message, author, server, agent, reason=None):
@@ -455,27 +494,30 @@ class AutoMod(discord.Client):
                     config[3].append(role.name)
                 except:
                     raise CommandError('Invalid user / role specified : {}'.format(agent))
-            await self.write_to_modlog(message, author, message.server, reason)
+            self.server_index[server.id] = config
+            await self.write_to_modlog(message, author, server, reason)
 
-    async def handle_blacklist(self, message, author, server, string, reason=None):
+    async def handle_blacklist(self, message, author, server, string_arg, reason=None):
         """
         Usage: {command_prefix}blacklist <string> <reason>
         Adds the specified word / words (string) to the blacklist!
         """
         if self.has_roles(author, server):
             config = self.server_index[server.id]
-            config[5].append(slugify(string, stopwords=['https', 'http', 'www'], separator='_'))
-            await self.write_to_modlog(message, author, message.server, reason)
+            config[5].append(do_slugify(string_arg))
+            self.server_index[server.id] = config
+            await self.write_to_modlog(message, author, server, reason)
 
-    async def handle_remblacklist(self, message, author, server, string, reason=None):
+    async def handle_remblacklist(self, message, author, server, string_arg, reason=None):
         """
         Usage: {command_prefix}remblacklist <string> <reason>
         Removes the specified word / words (string) from the blacklist!
         """
         if self.has_roles(author, server):
             config = self.server_index[server.id]
-            config[5].remove(slugify(string, stopwords=['https', 'http', 'www'], separator='_'))
-            await self.write_to_modlog(message, author, message.server, reason)
+            config[5].remove(do_slugify(string_arg))
+            self.server_index[server.id] = config
+            await self.write_to_modlog(message, author, server, reason)
 
     async def handle_remwhitelist(self, message, author, server, agent, reason=None):
         """
@@ -493,7 +535,8 @@ class AutoMod(discord.Client):
                     config[3].remove(role.name)
                 except:
                     raise CommandError('Invalid user / role specified : {}'.format(agent))
-            await self.write_to_modlog(message, author, message.server, reason)
+            self.server_index[server.id] = config
+            await self.write_to_modlog(message, author, server, reason)
 
     async def handle_unban(self, message, author, server, username, reason=None):
         """
@@ -503,8 +546,8 @@ class AutoMod(discord.Client):
         user_id = extract_user_id(username)
         if not user_id:
             raise CommandError('Invalid user specified')
-        await self.write_to_modlog(message, author, message.server, reason)
-        member = discord.utils.get(server.members, id=user_id)
+        await self.write_to_modlog(message, author, server, reason)
+        member = discord.utils.get(server.members, id=str(user_id))
         self.unban(server, member)
 
     async def handle_settokens(self, message, author, server, tokens, reason=None):
@@ -519,9 +562,8 @@ class AutoMod(discord.Client):
                 raise CommandError('Non number detected: {}'.format(tokens))
             if tokens < 1:
                 raise CommandError('Cannot use a number less than 1, received : {}'.format(tokens))
-            config = self.server_index[server.id]
-            config[1] = tokens
-            await self.write_to_modlog(message, author, message.server, reason)
+            self.server_index[server.id][1]=tokens
+            await self.write_to_modlog(message, author, server, reason)
 
     async def handle_settokenreset(self, message, author, server, time, reason=None):
         """
@@ -537,7 +579,7 @@ class AutoMod(discord.Client):
                 raise CommandError('Cannot use a number less than 1, received : {}'.format(time))
             config = self.server_index[server.id]
             config[2] = time
-            await self.write_to_modlog(message, author, message.server, reason)
+            await self.write_to_modlog(message, author, server, reason)
 
     async def handle_setpunishment(self, message, author, server, new_punishment, reason=None):
         """
@@ -552,7 +594,7 @@ class AutoMod(discord.Client):
             if new_punishment == config[6]:
                 return
             config[6] = new_punishment
-            await self.write_to_modlog(message, author, message.server, reason)
+            await self.write_to_modlog(message, author, server, reason)
 
     async def handle_setlongtimemember(self, message, author, server, time, reason=None):
         """
@@ -569,43 +611,43 @@ class AutoMod(discord.Client):
                 raise CommandError('Cannot use a number less than 0, received : {}'.format(time))
             config = self.server_index[server.id]
             config[7] = time
-            await self.write_to_modlog(message, author, message.server, reason)
+            await self.write_to_modlog(message, author, server, reason)
 
-    async def handle_setmodlogid(self, message, author, server, newID, reason=None):
+    async def handle_setmodlogid(self, message, author, server, new_id, reason=None):
         """
         Usage: {command_prefix}setmodlogid <new channel ID> <reason>
         Sets the channel ID of the mod log!
         """
         if self.has_roles(author, server):
             try:
-                newID = int(newID)
+                new_id = int(new_id)
             except:
-                raise CommandError('Non number detected: {}'.format(newID))
-            if len(newID) != 18:
-                raise CommandError('Invalid Channel ID: {}'.format(newID))
+                raise CommandError('Non number detected: {}'.format(new_id))
+            if len(str(new_id)) != 18:
+                raise CommandError('Invalid Channel ID: {}'.format(new_id))
             config = self.server_index[server.id]
-            config[8] = newID
-            await self.write_to_modlog(message, author, message.server, reason)
+            config[8] = new_id
+            await self.write_to_modlog(message, author, server, reason)
 
-    async def handle_setserverlogid(self, message, author, server, newID, reason=None):
+    async def handle_setserverlogid(self, message, author, server, new_id, reason=None):
         """
         Usage: {command_prefix}setserverlogid <new channel ID> <reason>
         Sets the channel ID of the server log!
         """
         if self.has_roles(author, server):
             try:
-                newID = int(newID)
+                new_id = int(new_id)
             except:
-                raise CommandError('Non number detected: {}'.format(newID))
-            if len(newID) != 18:
-                raise CommandError('Invalid Channel ID: {}'.format(newID))
+                raise CommandError('Non number detected: {}'.format(new_id))
+            if len(str(new_id)) != 18:
+                raise CommandError('Invalid Channel ID: {}'.format(new_id))
             config = self.server_index[server.id]
-            config[9] = newID
-            await self.write_to_modlog(message, author, message.server, reason)
+            config[9] = new_id
+            await self.write_to_modlog(message, author, server, reason)
 
-    async def handle_alertrhino(self, message, author, server, content):
+    async def handle_alertrhino(self, message, author, server, string_arg):
         """
-        Usage: {command_prefix}alertrhino <message>
+        Usage: {command_prefix}alertrhino "<message>"
         Used to send a message to SexualRhinoceros if the bot isn't working for one reason or another!
         """
         if self.has_roles(author, server):
@@ -614,8 +656,8 @@ class AutoMod(discord.Client):
                 if servers.id == RHINO_SERVER:
                     for channel in servers.channels:
                         if channel.id == RHINO_SERVER_CHANNEL:
-                            self.send_message(channel, 'Help requested by **{}** at *{}* for reason `{}`\n\t{}'
-                                                       ''.format(author.name, server.name, content, inv))
+                            await self.send_message(channel, 'Help requested by **{}** at *{}* for reason `{}`\n\t{}'
+                                                             ''.format(author.name, server.name, string_arg, inv))
                             return Response('Rhino has been alerted!', reply=True)
             pass
 
@@ -626,46 +668,46 @@ class AutoMod(discord.Client):
         """
         return Response('I\'ve fallen and I can\'t get up!', reply=True)
 
-    async def handle_ignore(self, message, author, server, newID, reason=None):
+    async def handle_ignore(self, message, author, server, new_id, reason=None):
         """
-        Usage: {command_prefix}ignore <channel ID> <reason>
+        Usage: {command_prefix}ignore <channel ID> "<reason>"
         Adds the channel ID to the list of ignored channels when outputting to the server log
         """
         if self.has_roles(author, server):
             try:
-                newID = int(newID)
+                new_id = int(new_id)
             except:
-                raise CommandError('Non number detected: {}'.format(newID))
-            if len(newID) != 18:
-                raise CommandError('Invalid Channel ID: {}'.format(newID))
+                raise CommandError('Non number detected: {}'.format(new_id))
+            if len(new_id) != 18:
+                raise CommandError('Invalid Channel ID: {}'.format(new_id))
             config = self.server_index[server.id]
-            config[12].append(newID)
-            await self.write_to_modlog(message, author, message.server, reason)
+            config[12].append(new_id)
+            await self.write_to_modlog(message, author, server, reason)
 
-    async def handle_remignore(self, message, author, server, newID, reason=None):
+    async def handle_remignore(self, message, author, server, new_id, reason=None):
         """
-        Usage: {command_prefix}remignore <channel ID> <reason>
+        Usage: {command_prefix}remignore <channel ID> "<reason>"
         Removes the channel ID from the list of ignored channels when outputting to the server log
         """
         if self.has_roles(author, server):
             try:
-                newID = int(newID)
+                new_id = int(new_id)
             except:
-                raise CommandError('Non number detected: {}'.format(newID))
-            if len(newID) != 18:
-                raise CommandError('Invalid Channel ID: {}'.format(newID))
+                raise CommandError('Non number detected: {}'.format(new_id))
+            if len(new_id) != 18:
+                raise CommandError('Invalid Channel ID: {}'.format(new_id))
             config = self.server_index[server.id]
-            config[12].remove(newID)
-            await self.write_to_modlog(message, author, message.server, reason)
+            config[12].remove(new_id)
+            await self.write_to_modlog(message, author, server, reason)
 
-    async def handle_broadcast(self, message, author, server, content):
+    async def handle_broadcast(self, message, author, server, string_arg):
         """
-        Usage: {command_prefix}broadcast <message>
+        Usage: {command_prefix}broadcast "<message>"
         Sends a message to the default channel of all servers the bot is in
         """
         if author.id == self.config.master_id:
             for servers in self.servers:
-                self.send_message(servers, content)
+                await self.send_message(servers, string_arg)
             return Response('its been done', reply=True)
         return
 
@@ -713,40 +755,43 @@ class AutoMod(discord.Client):
                 raise CommandError('Could not change name to:\t{}\n'.format(newname))
         return
 
-    async def handle_joinserver(self, message, server_link):
+    async def handle_joinserver(self, message, author, server_link):
         """
         Usage {command_prefix}joinserver [Server Link]
         Asks the bot to join a server. [todo: add info about if it breaks or whatever]
         """
         try:
             inv = await self.get_invite(server_link)
-            self.user_invite_dict[inv.server.id]=  message.author.id
+            self.user_invite_dict[inv.server.id]=  author.id
             await self.accept_invite(server_link)
 
         except:
             raise CommandError('Invalid URL provided:\n\t{}\n'.format(server_link))
 
     async def on_server_join(self, server):
-        print('called')
         await self.send_message(server.default_channel, 'Hello! I\'m your friendly robo-Moderator and was invited by <@{}> to make the lives of everyone easier!'
-                                                  '\nIf a Moderator with a role named `{}` would run the command `{}register`, I can start helping'
-                                                  ' keep things clean!'.format(
-                                                   self.user_invite_dict[server.id], BOT_HANDLER_ROLE, self.config.command_prefix))
+                                                        '\nIf a Moderator with a role named `{}` would run the command `{}register`, I can start helping'
+                                                        ' keep things clean!'.format(
+                                                         self.user_invite_dict[server.id], BOT_HANDLER_ROLE, self.config.command_prefix))
         self.server_timer(server)
 
     async def on_message_edit(self, before, after):
-        await self.do_server_log(before=before, after=after)
+        if before.author.id == self.user.id:
+            return
+        await self.on_message(after, flag=True)
+        await self.do_server_log(before=before, after=after, flag='edit')
 
     async def on_message_delete(self, message):
-        await self.do_server_log(message=message)
+        await self.do_server_log(message=message, flag='delete')
 
     async def on_member_remove(self, member):
-        await self.do_server_log(self, member=member)
+        await self.do_server_log(self, member=member, flag='remove')
 
     async def on_member_join(self, member):
-        await self.do_server_log(self, member=member)
+        await self.do_server_log(self, member=member, flag='join')
 
-    async def on_message(self, message):
+    async def on_message(self, message, flag=None):
+
         if message.author == self.user:
             return
 
@@ -771,10 +816,14 @@ class AutoMod(discord.Client):
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
             return
 
-        await self.do_server_log(message=message)
-
         message_content = message.content.strip()
         if message_content.startswith(self.config.command_prefix):
+            m = re.search('".+"', message_content)
+            str_content = None
+            if m:
+                str_content = m.group(0)
+                message_content = message_content.replace(str_content, '')
+                str_content = str_content.replace('"', '')
             command, *args = message_content.split()
 
             command = command[len(self.config.command_prefix):].lower().strip()
@@ -808,6 +857,9 @@ class AutoMod(discord.Client):
 
                 if params.pop('player', None):
                     handler_kwargs['player'] = await self.get_player(message.channel)
+
+                if params.pop('string_arg', None) and str_content:
+                    handler_kwargs['string_arg'] = str_content
 
                 args_expected = []
                 for key, param in list(params.items()):
@@ -859,39 +911,69 @@ class AutoMod(discord.Client):
             except:
                 await self.send_message(message.channel, '```\n%s\n```' % traceback.format_exc())
                 traceback.print_exc()
-        elif self.is_checked(message.author, message.server):
-            pass
+            await self.do_server_log(message=message)
+        elif message.server.id not in self.server_index:
+            return
+        elif not self.is_checked(message.author, message.server):
+            return
         elif self.is_long_member(message.author.joined_at, message.server):
             config = self.server_index[message.server.id]
             if message.author.id in config[11]:
-                if self.limit_post(message.author, message.server, message.content) is True:
+                this = config[11][message.author.id]
+                now = datetime.utcnow()
+                if self.limit_post(message.author, message.server, message.content, flg=flag) is True:
                     try:
                         await self.delete_message(message)
+                        await self._write_to_modlog('deleted the message of ', message.author, message.server, 'rate limiting')
+                        this[0] = now
                     except:
-                        pass
-                this = config[11][message.author.id]
-                this[0] = datetime.utcnow()
-                this[2].append(slugify(message.content, stopwords=['https', 'http', 'www'], separator='_'))
+                        raise CommandError('Cannot delete message: \n{}'.format(message.content))
+                else:
+                    await self.do_server_log(message=message)
+                this[2].append(do_slugify(message.content))
                 self.server_index[message.server.id][11][message.author.id] = this
             else:
-                this = [datetime.utcnow(), [message.content], config[1] - 1]
+                this = [datetime.utcnow(), config[1] - 1, [message.content]]
                 self.server_index[message.server.id][11][message.author.id] = this
         else:
             config = self.server_index[message.server.id]
             if message.author.id in config[11]:
-                if self.limit_post(message.author, message.server, message.content) is True:
+                if self.strict_limit_post(message.author, message.server, message.content, flg=flag) is True:
                     try:
                         await self.delete_message(message)
+                        await self._write_to_modlog('deleted the message of ', message.author, message.server, 'rate limiting')
                     except:
-                        pass
+                        raise CommandError('Cannot delete message: \n{}'.format(message.content))
+                else:
+                    await self.do_server_log(message=message)
                 this = config[11][message.author.id]
                 this[0] = datetime.utcnow()
-                this[2].append(slugify(message.content, stopwords=['https', 'http', 'www'], separator='_'))
+                this[2].append(do_slugify(message.content))
                 self.server_index[message.server.id][11][message.author.id] = this
             else:
-                this = [datetime.utcnow(), [message.content], config[1] - 1]
+                this = [datetime.utcnow(), config[1] - 1, [message.content]]
                 self.server_index[message.server.id][11][message.author.id] = this
-
+        if not self.is_checked(message.author, message.server):
+            return
+        for words in self.server_index[message.server.id][5]:
+            if compare_strings(words, do_slugify(message.content)) > 79 or words in do_slugify(message.content):
+                action = self.server_index[message.server.id][6]
+                if 'kick' in action:
+                    await self._write_to_modlog('kicked', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                    self.kick(message.author)
+                elif 'ban' in action:
+                    await self._write_to_modlog('banned', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                    self.ban(message.author, 7)
+                    return
+                elif 'mute' in action:
+                    await self._write_to_modlog('muted', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                    mutedrole = discord.utils.get(message.server.roles, name='Muted')
+                    await self.add_roles(message.author, mutedrole)
+                elif 'nothing' in action:
+                    await self._write_to_modlog('flagged', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                else:
+                    return
+                await self.delete_message(message)
 
 if __name__ == '__main__':
     bot = AutoMod()
