@@ -4,6 +4,7 @@ import traceback
 import inspect
 import os
 import re
+import shlex
 
 from functools import wraps
 
@@ -27,16 +28,6 @@ def backup_config(server_config_list):
             os.makedirs(savedir)
         savedir += '\\config.json'
         write_json(savedir, current_config)
-
-def sleep_decorator(timer):
-    def func_wrapper(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            yield from asyncio.sleep(timer)
-            print('BACKING UP JSON')
-            return func(*args, **kwargs)
-        return wrapper
-    return func_wrapper
 
 class AutoMod(discord.Client):
     def __init__(self, config_file='config/options.txt'):
@@ -69,8 +60,13 @@ class AutoMod(discord.Client):
         if len(check_server.roles) != 1:
             try:
                 for role in user.roles:
-                    if role.id in self.server_index[check_server.id][14] or user.id in self.server_index[check_server.id][15] or role.name.lower() == BOT_HANDLER_ROLE.lower():
-                        return True
+                    try:
+                        if BOT_HANDLER_ROLE.lower() in role.name.lower():
+                            return True
+                        elif role.id in self.server_index[check_server.id][14] or user.id in self.server_index[check_server.id][15]:
+                            return True
+                    except:
+                        pass
             except:
                 return False
         else:
@@ -89,7 +85,7 @@ class AutoMod(discord.Client):
         config = self.server_index[server.id]
         try:
             today = datetime.utcnow()
-            margin = datetime.timedelta(hours=config[7])
+            margin = timedelta(hours=config[7])
             return today - margin > date_joined
         except:
             return False
@@ -121,7 +117,7 @@ class AutoMod(discord.Client):
 
         if now - last_post_time < timedelta(minutes=10 and not flg):
             for last_content in last_timeframe_content:
-                if compare_strings(last_content, content) > 70:
+                if compare_strings(last_content, content) > 75:
                     author_index[1] -= 1
                     self.server_index[server.id][11][author.id] = author_index
                     return True
@@ -147,28 +143,36 @@ class AutoMod(discord.Client):
         match2 = re.split("[\n]{4,}", content)
         match = re.split(r"(.)\1{9,}", content)
 
-        if match or match2:
+        if len(match) > 1 or len(match2) > 1:
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
             return True
 
         content = do_slugify(content)
-        if now - last_post_time < timedelta(minutes=10 and not flg):
+
+        match2 = re.split("[\n]{4,}", content)
+        match = re.split(r"(.)\1{9,}", content)
+
+        if len(match) > 1 or len(match2) > 1:
+            author_index[1] -= 1
+            self.server_index[server.id][11][author.id] = author_index
+            return True
+
+        if now - last_post_time < timedelta(minutes=1 and not flg):
             for last_content in last_timeframe_content:
-                if compare_strings(last_content, content) > 80:
+                if compare_strings(last_content, content) > 85:
                     author_index[1] -= 1
                     self.server_index[server.id][11][author.id] = author_index
                     return True
 
-        if now - last_post_time < timedelta(seconds=config[2]-1):
+        this = config[2] + 1
+        if now - last_post_time < timedelta(seconds=this):
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
             if author_index[1] <= 0:
-
                 return True
         else:
-            author_index[0] = now
-            author_index[1] = config[1]+2
+            author_index[1] = config[1] + 2
             author_index[2] = []
         self.server_index[server.id][11][author.id] = author_index
         return False
@@ -183,16 +187,18 @@ class AutoMod(discord.Client):
             # if server.id in self.server_index:
             #     self.server_index[server.id][0] = self.get_bans(server)
         print()
-        self.backup_list()
+        await self.backup_list()
 
-    @sleep_decorator(86400)
     async def server_timer(self, server):
+        await asyncio.sleep(86400)
+        print('BACKING UP JSON')
         if server.id not in self.server_index:
             await self.leave_server(server)
             print('{} timed out after 24 hours')
 
-    @sleep_decorator(1800)
     async def backup_list(self):
+        await asyncio.sleep(1800)
+        print('BACKING UP JSON')
         backup_config(self.server_index)
         await self.backup_list()
 
@@ -205,8 +211,9 @@ class AutoMod(discord.Client):
             return
         if not reason:
             reason = "***No Reason Specified***"
+        content = re.sub(r'".+".*?(".+")', '', message.content)
         await self.send_message(discord.Object(id=config[8]), 'At *{}*, **{}** has used the command ```{}```Reason: `{}`'
-                                                              ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), author, message.content, reason))
+                                                              ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), author, content, reason))
 
     async def _write_to_modlog(self, autoaction, offender, server, reason):
         if server.id in self.server_index:
@@ -223,6 +230,9 @@ class AutoMod(discord.Client):
     # TODO: Make this good code that is mine, not stuff taken from old pre async branch code written by @Sharpwaves
     async def do_server_log(self, message=None, flag=None, member=None, before=None, after=None):
         if message and not flag:
+            for m in message.mentions:
+                id = '<@{user_id}>'.format(user_id=m.id)
+                message.content = message.content.replace(id, m.name)
             if message.server.id in self.server_index:
                 config = self.server_index[message.server.id]
             else:
@@ -269,6 +279,7 @@ class AutoMod(discord.Client):
                                                                       '--------------------------------------**'
                                                                       ''.format(member.name.upper()))
             elif flag == 'edit':
+
                 if before.server.id in self.server_index:
                     config = self.server_index[before.server.id]
                 else:
@@ -278,6 +289,13 @@ class AutoMod(discord.Client):
                 if not config[9]:
                     return
                 if before.content != after.content:
+                    for m in before.mentions:
+                        id = '<@{user_id}>'.format(user_id=m.id)
+                        before.content = before.content.replace(id, m.name)
+                    for m in after.mentions:
+                        id = '<@{user_id}>'.format(user_id=m.id)
+                        after.content = after.content.replace(id, m.name)
+
                     channel_trimmed = after.channel.name.upper()[:10]
                     if (len(before.content) + len(after.content)) > 1800:
                         msg = '**__{0}|__ {1} edited their message**\n**Before:** {2}\n**+After:** {3}'.format(channel_trimmed, after.author.name, before.content, after.content)
@@ -336,7 +354,7 @@ class AutoMod(discord.Client):
 
     async def handle_mute(self, message, server, author, username, time=None, reason=None):
         """
-        Usage: {command_prefix}mute @UserName <time> <reason>
+        Usage: {command_prefix}mute @UserName <time> "<reason>"
         Mute the user indefinitley unless given a time, then only mute till the time is up
         """
         if self.has_roles(author, server):
@@ -364,7 +382,7 @@ class AutoMod(discord.Client):
 
     async def handle_unmute(self, message, author, server, username, reason=None):
         """
-        Usage: {command_prefix}unmute @UserName <reason>
+        Usage: {command_prefix}unmute @UserName "<reason>"
         Unmutes the user defined.
         """
         if self.has_roles(author, server):
@@ -384,7 +402,7 @@ class AutoMod(discord.Client):
 
     async def handle_addrole(self, message, author, server, username, rolename, reason=None):
         """
-        Usage: {command_prefix}addroles @UserName <role name> <reason>
+        Usage: {command_prefix}addroles @UserName "<role name>" "<reason>"
         Assigns the user the roles defined
         """
         if self.has_roles(author, server):
@@ -403,7 +421,7 @@ class AutoMod(discord.Client):
 
     async def handle_removerole(self, message, author, server, username, rolename, reason=None):
         """
-        Usage: {command_prefix}removerole @UserName <role name> <reason>
+        Usage: {command_prefix}removerole @UserName "<role name>" "<reason>"
         Removes the role defined from the user
         """
         if self.has_roles(author, server):
@@ -423,7 +441,7 @@ class AutoMod(discord.Client):
 
     async def handle_purge(self, message, author, server, channel, count, username=None, reason=None):
         """
-        Usage: {command_prefix}purge <# to purge> @UserName <reason>
+        Usage: {command_prefix}purge <# to purge> @UserName "<reason>"
         Removes all messages from chat unless a user is specified;
         then remove all messages by the user.
         """
@@ -454,7 +472,7 @@ class AutoMod(discord.Client):
 
     async def handle_ban(self, message, author, server, username, reason=None):
         """
-        Usage: {command_prefix}ban @UserName <reason>
+        Usage: {command_prefix}ban @UserName "<reason>"
         Bans the user from the server and removes 7 days worth of their messages
         """
         if self.has_roles(author, server):
@@ -467,7 +485,7 @@ class AutoMod(discord.Client):
 
     async def handle_kick(self, message, author, server, username, reason=None):
         """
-        Usage: {command_prefix}kick @Username <reason>
+        Usage: {command_prefix}kick @Username "<reason>"
         Kicks the user from the server.
         """
         if self.has_roles(author, server):
@@ -480,7 +498,7 @@ class AutoMod(discord.Client):
 
     async def handle_whitelist(self, message, author, server, agent, reason=None):
         """
-        Usage: {command_prefix}whitelist <@UserName / role> <reason>
+        Usage: {command_prefix}whitelist @UserName *OR* "<role name>" "<reason>"
         Adds the user or role to the whitelist so they're ignored by the filters.
         """
         if self.has_roles(author, server):
@@ -499,7 +517,7 @@ class AutoMod(discord.Client):
 
     async def handle_blacklist(self, message, author, server, string_arg, reason=None):
         """
-        Usage: {command_prefix}blacklist <string> <reason>
+        Usage: {command_prefix}blacklist "<string>" "<reason>"
         Adds the specified word / words (string) to the blacklist!
         """
         if self.has_roles(author, server):
@@ -510,7 +528,7 @@ class AutoMod(discord.Client):
 
     async def handle_remblacklist(self, message, author, server, string_arg, reason=None):
         """
-        Usage: {command_prefix}remblacklist <string> <reason>
+        Usage: {command_prefix}remblacklist "<string>" "<reason>"
         Removes the specified word / words (string) from the blacklist!
         """
         if self.has_roles(author, server):
@@ -521,7 +539,7 @@ class AutoMod(discord.Client):
 
     async def handle_remwhitelist(self, message, author, server, agent, reason=None):
         """
-        Usage: {command_prefix}whitelist <@UserName / role> <reason>
+        Usage: {command_prefix}whitelist @UserName *OR* "<role name>" "<reason>"
         Removes the user or role from the whitelist so they're no longer ignored by the filters.
         """
         if self.has_roles(author, server):
@@ -540,7 +558,7 @@ class AutoMod(discord.Client):
 
     async def handle_unban(self, message, author, server, username, reason=None):
         """
-        Usage: {command_prefix}unban @UserName <reason>
+        Usage: {command_prefix}unban @UserName "<reason>"
         Unbans a user!
         """
         user_id = extract_user_id(username)
@@ -552,7 +570,7 @@ class AutoMod(discord.Client):
 
     async def handle_settokens(self, message, author, server, tokens, reason=None):
         """
-        Usage: {command_prefix}settokens <number> <reason>
+        Usage: {command_prefix}settokens <number> "<reason>"
         Sets the number of tokens a user has to spend in a reset period
         """
         if self.has_roles(author, server):
@@ -567,7 +585,7 @@ class AutoMod(discord.Client):
 
     async def handle_settokenreset(self, message, author, server, time, reason=None):
         """
-        Usage: {command_prefix}settokenreset <time in seconds> <reason>
+        Usage: {command_prefix}settokenreset <time in seconds> "<reason>"
         Sets the time frame in which a user can spend their tokens until they're rate limited
         """
         if self.has_roles(author, server):
@@ -583,7 +601,7 @@ class AutoMod(discord.Client):
 
     async def handle_setpunishment(self, message, author, server, new_punishment, reason=None):
         """
-        Usage: {command_prefix}setpunishment <new punishment> <reason>
+        Usage: {command_prefix}setpunishment <new punishment> "<reason>"
         Sets the punishment to be used when a blacklisted word is detected
         Only accepts : 'kick', 'ban', 'mute', or 'nothing'
         """
@@ -598,7 +616,7 @@ class AutoMod(discord.Client):
 
     async def handle_setlongtimemember(self, message, author, server, time, reason=None):
         """
-        Usage: {command_prefix}setlongtimemember <time> <reason>
+        Usage: {command_prefix}setlongtimemember <time> "<reason>"
         Sets what the time in hours will be until a user is considered a 'long time memeber' of the server
         and be subjected to less strict filtering.
         """
@@ -615,7 +633,7 @@ class AutoMod(discord.Client):
 
     async def handle_setmodlogid(self, message, author, server, new_id, reason=None):
         """
-        Usage: {command_prefix}setmodlogid <new channel ID> <reason>
+        Usage: {command_prefix}setmodlogid <new channel ID> "<reason>"
         Sets the channel ID of the mod log!
         """
         if self.has_roles(author, server):
@@ -631,7 +649,7 @@ class AutoMod(discord.Client):
 
     async def handle_setserverlogid(self, message, author, server, new_id, reason=None):
         """
-        Usage: {command_prefix}setserverlogid <new channel ID> <reason>
+        Usage: {command_prefix}setserverlogid <new channel ID> "<reason>"
         Sets the channel ID of the server log!
         """
         if self.has_roles(author, server):
@@ -661,12 +679,13 @@ class AutoMod(discord.Client):
                             return Response('Rhino has been alerted!', reply=True)
             pass
 
-    async def handle_help(self, message, author, server, reason=None):
+    async def handle_ping(self, message, author, server):
         """
-        Usage: {command_prefix}whitelist @UserName
-        Adds the user to the whitelist, permitting them to add songs.
+        Usage: {command_prefix}ping
+        Replies with "PONG!"; Use to test bot's responsiveness
         """
-        return Response('I\'ve fallen and I can\'t get up!', reply=True)
+        if self.has_roles(author, server):
+            return Response('PONG!', reply=True)
 
     async def handle_ignore(self, message, author, server, new_id, reason=None):
         """
@@ -675,7 +694,7 @@ class AutoMod(discord.Client):
         """
         if self.has_roles(author, server):
             try:
-                new_id = int(new_id)
+                new_id = str(new_id)
             except:
                 raise CommandError('Non number detected: {}'.format(new_id))
             if len(new_id) != 18:
@@ -734,25 +753,12 @@ class AutoMod(discord.Client):
 
     async def handle_forcebackup(self, author):
         """
-        Usage: {command_prefix}id
-        Tells the user their id.
+        Usage: {command_prefix}forcebackup
+        Forces a back up of all server configs
         """
         if author.id == self.config.master_id:
             backup_config(self.server_index)
             return Response('its been done', reply=True)
-        return
-
-    async def handle_changename(self, author, newname):
-        """
-        Usage: {command_prefix}id
-        Tells the user their id.
-        """
-        if author.id == self.config.master_id:
-            try:
-                self.edit_profile(password=self.config.password, username=newname)
-                return Response('its been done', reply=True)
-            except:
-                raise CommandError('Could not change name to:\t{}\n'.format(newname))
         return
 
     async def handle_joinserver(self, message, author, server_link):
@@ -818,13 +824,7 @@ class AutoMod(discord.Client):
 
         message_content = message.content.strip()
         if message_content.startswith(self.config.command_prefix):
-            m = re.search('".+"', message_content)
-            str_content = None
-            if m:
-                str_content = m.group(0)
-                message_content = message_content.replace(str_content, '')
-                str_content = str_content.replace('"', '')
-            command, *args = message_content.split()
+            command, *args = shlex.split(message_content)
 
             command = command[len(self.config.command_prefix):].lower().strip()
 
@@ -857,9 +857,6 @@ class AutoMod(discord.Client):
 
                 if params.pop('player', None):
                     handler_kwargs['player'] = await self.get_player(message.channel)
-
-                if params.pop('string_arg', None) and str_content:
-                    handler_kwargs['string_arg'] = str_content
 
                 args_expected = []
                 for key, param in list(params.items()):
@@ -914,7 +911,10 @@ class AutoMod(discord.Client):
             await self.do_server_log(message=message)
         elif message.server.id not in self.server_index:
             return
+        elif message.author.id in self.server_index[message.server.id][12]:
+            return
         elif not self.is_checked(message.author, message.server):
+            await self.do_server_log(message=message)
             return
         elif self.is_long_member(message.author.joined_at, message.server):
             config = self.server_index[message.server.id]
@@ -933,7 +933,7 @@ class AutoMod(discord.Client):
                 this[2].append(do_slugify(message.content))
                 self.server_index[message.server.id][11][message.author.id] = this
             else:
-                this = [datetime.utcnow(), config[1] - 1, [message.content]]
+                this = [datetime.utcnow(), config[1] + 2, [message.content]]
                 self.server_index[message.server.id][11][message.author.id] = this
         else:
             config = self.server_index[message.server.id]
@@ -951,29 +951,35 @@ class AutoMod(discord.Client):
                 this[2].append(do_slugify(message.content))
                 self.server_index[message.server.id][11][message.author.id] = this
             else:
-                this = [datetime.utcnow(), config[1] - 1, [message.content]]
+                this = [datetime.utcnow(), config[1], [message.content]]
                 self.server_index[message.server.id][11][message.author.id] = this
         if not self.is_checked(message.author, message.server):
             return
-        for words in self.server_index[message.server.id][5]:
-            if compare_strings(words, do_slugify(message.content)) > 79 or words in do_slugify(message.content):
-                action = self.server_index[message.server.id][6]
-                if 'kick' in action:
-                    await self._write_to_modlog('kicked', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
-                    self.kick(message.author)
-                elif 'ban' in action:
-                    await self._write_to_modlog('banned', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
-                    self.ban(message.author, 7)
-                    return
-                elif 'mute' in action:
-                    await self._write_to_modlog('muted', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
-                    mutedrole = discord.utils.get(message.server.roles, name='Muted')
-                    await self.add_roles(message.author, mutedrole)
-                elif 'nothing' in action:
-                    await self._write_to_modlog('flagged', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
-                else:
-                    return
-                await self.delete_message(message)
+        if message.server.id not in self.server_index:
+            return
+        else:
+            for words in self.server_index[message.server.id][5]:
+                check_pct = 79
+                if self.is_long_member(message.author.joined_at, message.server):
+                    check_pct = 90
+                if compare_strings(words, do_slugify(message.content)) > check_pct or words in do_slugify(message.content):
+                    action = self.server_index[message.server.id][6]
+                    if 'kick' in action:
+                        await self._write_to_modlog('kicked', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                        self.kick(message.author)
+                    elif 'ban' in action:
+                        await self._write_to_modlog('banned', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                        self.ban(message.author, 7)
+                        return
+                    elif 'mute' in action:
+                        await self._write_to_modlog('muted', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                        mutedrole = discord.utils.get(message.server.roles, name='Muted')
+                        await self.add_roles(message.author, mutedrole)
+                    elif 'nothing' in action:
+                        await self._write_to_modlog('flagged', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                    else:
+                        return
+                    await self.delete_message(message)
 
 if __name__ == '__main__':
     bot = AutoMod()
