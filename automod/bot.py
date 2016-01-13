@@ -18,7 +18,8 @@ from automod.version import VERSION
 from automod.utils import load_json, extract_user_id, write_json, load_file, write_file, compare_strings, do_slugify
 
 from .exceptions import CommandError
-from .constants import BOT_HANDLER_ROLE, RHINO_SERVER, RHINO_SERVER_CHANNEL
+from .constants import BOT_HANDLER_ROLE, RHINO_SERVER, RHINO_SERVER_CHANNEL, DOCUMENTATION_FOR_BOT, CARBON_BOT_ID
+
 
 def backup_config(server_config_list):
     for key, current_config in server_config_list.items():
@@ -63,7 +64,7 @@ class AutoMod(discord.Client):
                     try:
                         if BOT_HANDLER_ROLE.lower() in role.name.lower():
                             return True
-                        elif role.id in self.server_index[check_server.id][14] or user.id in self.server_index[check_server.id][15]:
+                        elif role.name in self.server_index[check_server.id][14] or user.id in self.server_index[check_server.id][15]:
                             return True
                     except:
                         pass
@@ -113,25 +114,25 @@ class AutoMod(discord.Client):
         if len(match) > 1 or len(match2) > 1:
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
-            return True
+            return 2
 
         if now - last_post_time < timedelta(minutes=10 and not flg):
             for last_content in last_timeframe_content:
                 if compare_strings(last_content, content) > 75:
                     author_index[1] -= 1
                     self.server_index[server.id][11][author.id] = author_index
-                    return True
+                    return 1
 
         if now - last_post_time < timedelta(seconds=config[2]):
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
             if author_index[1] <= 0:
-                return True
+                return 3
         else:
             author_index[1] = config[1]
             author_index[2] = []
         self.server_index[server.id][11][author.id] = author_index
-        return False
+        return 0
 
     def limit_post(self, author, server, content, flg=None):
         config = self.server_index[server.id]
@@ -146,7 +147,7 @@ class AutoMod(discord.Client):
         if len(match) > 1 or len(match2) > 1:
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
-            return True
+            return 2
 
         content = do_slugify(content)
 
@@ -156,26 +157,26 @@ class AutoMod(discord.Client):
         if len(match) > 1 or len(match2) > 1:
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
-            return True
+            return 2
 
         if now - last_post_time < timedelta(minutes=1 and not flg):
             for last_content in last_timeframe_content:
                 if compare_strings(last_content, content) > 85:
                     author_index[1] -= 1
                     self.server_index[server.id][11][author.id] = author_index
-                    return True
+                    return 1
 
         this = config[2] + 1
         if now - last_post_time < timedelta(seconds=this):
             author_index[1] -= 1
             self.server_index[server.id][11][author.id] = author_index
             if author_index[1] <= 0:
-                return True
+                return 3
         else:
             author_index[1] = config[1] + 2
             author_index[2] = []
         self.server_index[server.id][11][author.id] = author_index
-        return False
+        return 0
 
     async def on_ready(self):
         print('Connected!\n')
@@ -197,7 +198,7 @@ class AutoMod(discord.Client):
             print('{} timed out after 24 hours')
 
     async def backup_list(self):
-        await asyncio.sleep(1800)
+        await asyncio.sleep(900)
         print('BACKING UP JSON')
         backup_config(self.server_index)
         await self.backup_list()
@@ -230,9 +231,6 @@ class AutoMod(discord.Client):
     # TODO: Make this good code that is mine, not stuff taken from old pre async branch code written by @Sharpwaves
     async def do_server_log(self, message=None, flag=None, member=None, before=None, after=None):
         if message and not flag:
-            for m in message.mentions:
-                id = '<@{user_id}>'.format(user_id=m.id)
-                message.content = message.content.replace(id, m.name)
             if message.server.id in self.server_index:
                 config = self.server_index[message.server.id]
             else:
@@ -242,8 +240,8 @@ class AutoMod(discord.Client):
             if not config[9]:
                 return
             channel_trimmed = message.channel.name.upper()[:10]
-            if len(message.content) > 1800:
-                msg = '**__{0}|__ {1}:** {2}'.format(channel_trimmed, message.author.name, message.content)
+            if len(message.clean_content) > 1800:
+                msg = '**__{0}|__ {1}:** {2}'.format(channel_trimmed, message.author.name, message.clean_content)
                 split = [msg[i:i+1800] for i in range(0, len(msg), 1800)]
                 for x in split:
                     await self.send_message(discord.Object(id=config[9]), x)
@@ -253,8 +251,8 @@ class AutoMod(discord.Client):
                     await self.send_message(discord.Object(id=config[9]), msg)
                 except:
                     pass
-                if message.content != '':
-                    msg = '**__{0}|__ {1}:** {2}'.format(channel_trimmed, message.author.name, message.content)
+                if message.clean_content != '':
+                    msg = '**__{0}|__ {1}:** {2}'.format(channel_trimmed, message.author.name, message.clean_content)
                     await self.send_message(discord.Object(id=config[9]), msg)
         elif flag:
             if flag == 'join':
@@ -288,23 +286,15 @@ class AutoMod(discord.Client):
                     return
                 if not config[9]:
                     return
-                if before.content != after.content:
-                    for m in before.mentions:
-                        id = '<@{user_id}>'.format(user_id=m.id)
-                        before.content = before.content.replace(id, m.name)
-                    for m in after.mentions:
-                        id = '<@{user_id}>'.format(user_id=m.id)
-                        after.content = after.content.replace(id, m.name)
-
-                    channel_trimmed = after.channel.name.upper()[:10]
-                    if (len(before.content) + len(after.content)) > 1800:
-                        msg = '**__{0}|__ {1} edited their message**\n**Before:** {2}\n**+After:** {3}'.format(channel_trimmed, after.author.name, before.content, after.content)
-                        split = [msg[i:i+1800] for i in range(0, len(msg), 1800)]
-                        for x in split:
-                            await self.send_message(discord.Object(id=config[9]), x)
-                    else:
-                        msg = '**__{0}|__ {1} edited their message**\n**Before:** {2}\n**+After:** {3}'.format(channel_trimmed, after.author.name, before.content, after.content)
-                        await self.send_message(discord.Object(id=config[9]), msg)
+                channel_trimmed = after.channel.name.upper()[:10]
+                if (len(before.clean_content) + len(after.clean_content)) > 1800:
+                    msg = '**__{0}|__ {1} edited their message**\n**Before:** {2}\n**+After:** {3}'.format(channel_trimmed, after.author.name, before.clean_content, after.clean_content)
+                    split = [msg[i:i+1800] for i in range(0, len(msg), 1800)]
+                    for x in split:
+                        await self.send_message(discord.Object(id=config[9]), x)
+                else:
+                    msg = '**__{0}|__ {1} edited their message**\n**Before:** {2}\n**+After:** {3}'.format(channel_trimmed, after.author.name, before.clean_content, after.clean_content)
+                    await self.send_message(discord.Object(id=config[9]), msg)
             elif flag == 'delete':
                 if message.server.id in self.server_index:
                     config = self.server_index[message.server.id]
@@ -315,14 +305,14 @@ class AutoMod(discord.Client):
                 if not config[9]:
                     return
                 channel_trimmed = message.channel.name.upper()[:10]
-                if len(message.content) > 1800:
-                    msg = '**__{0}|__ {1} deleted their message:** {2}'.format(channel_trimmed, message.author.name, message.content)
+                if len(message.clean_content) > 1800:
+                    msg = '**__{0}|__ {1} deleted their message:** {2}'.format(channel_trimmed, message.author.name, message.clean_content)
                     split = [msg[i:i+1800] for i in range(0, len(msg), 1800)]
                     for x in split:
                         await self.send_message(discord.Object(id=config[9]), x)
                 else:
-                    if message.content != '':
-                        msg = '**__{0}|__ {1} deleted their message:** {2}'.format(channel_trimmed, message.author.name, message.content)
+                    if message.clean_content != '':
+                        msg = '**__{0}|__ {1} deleted their message:** {2}'.format(channel_trimmed, message.author.name, message.clean_content)
                         await self.send_message(discord.Object(id=config[9]), msg)
 
     async def handle_register(self, message, author, server):
@@ -607,7 +597,7 @@ class AutoMod(discord.Client):
         """
         if self.has_roles(author, server):
             if 'kick' or 'ban' or 'mute' or 'nothing' not in new_punishment:
-                raise CommandError('Improper option inputted: {}'.format(config = self.server_index[server.id]))
+                raise CommandError('Improper option inputted: {}'.format(new_punishment))
             config = self.server_index[server.id]
             if new_punishment == config[6]:
                 return
@@ -687,6 +677,14 @@ class AutoMod(discord.Client):
         if self.has_roles(author, server):
             return Response('PONG!', reply=True)
 
+    async def handle_info(self, message, author, server):
+        """
+        Usage: {command_prefix}info
+        Replies with "PONG!"; Use to test bot's responsiveness
+        """
+        return Response('I was coded by SexualRhinoceros and am currently on v{} ! \nFor documentation on my commands or info on how to get my in your'
+                        ' server, check out this link! {}'.format(VERSION, DOCUMENTATION_FOR_BOT), reply=True)
+
     async def handle_ignore(self, message, author, server, new_id, reason=None):
         """
         Usage: {command_prefix}ignore <channel ID> "<reason>"
@@ -761,31 +759,34 @@ class AutoMod(discord.Client):
             return Response('its been done', reply=True)
         return
 
-    async def handle_joinserver(self, message, author, server_link):
+    async def handle_joinserver(self, author, server_link, flagg=None):
         """
         Usage {command_prefix}joinserver [Server Link]
         Asks the bot to join a server. [todo: add info about if it breaks or whatever]
         """
         try:
             inv = await self.get_invite(server_link)
-            self.user_invite_dict[inv.server.id]=  author.id
+            self.user_invite_dict[inv.server.id] = author.id
             await self.accept_invite(server_link)
-
+            if flagg:
+                return True
+            return False
         except:
-            raise CommandError('Invalid URL provided:\n\t{}\n'.format(server_link))
+            if not flagg:
+                raise CommandError('Invalid URL provided:\n\t{}\n'.format(server_link))
 
     async def on_server_join(self, server):
         await self.send_message(server.default_channel, 'Hello! I\'m your friendly robo-Moderator and was invited by <@{}> to make the lives of everyone easier!'
                                                         '\nIf a Moderator with a role named `{}` would run the command `{}register`, I can start helping'
                                                         ' keep things clean!'.format(
                                                          self.user_invite_dict[server.id], BOT_HANDLER_ROLE, self.config.command_prefix))
-        self.server_timer(server)
+        await self.server_timer(server)
 
     async def on_message_edit(self, before, after):
         if before.author.id == self.user.id:
             return
-        await self.on_message(after, flag=True)
         await self.do_server_log(before=before, after=after, flag='edit')
+        await self.on_message(after, flag=True)
 
     async def on_message_delete(self, message):
         await self.do_server_log(message=message, flag='delete')
@@ -820,6 +821,12 @@ class AutoMod(discord.Client):
                     return
             else:
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
+            try:
+                this = await self.handle_joinserver(message.author, message.content, flagg=True)
+                if this is not False:
+                    await self.send_message(message.author, 'I have joined that server.')
+            except:
+                pass
             return
 
         message_content = message.content.strip()
@@ -908,28 +915,37 @@ class AutoMod(discord.Client):
             except:
                 await self.send_message(message.channel, '```\n%s\n```' % traceback.format_exc())
                 traceback.print_exc()
-            await self.do_server_log(message=message)
+            if not flag:
+                await self.do_server_log(message=message)
         elif message.server.id not in self.server_index:
             return
         elif message.author.id in self.server_index[message.server.id][12]:
             return
         elif not self.is_checked(message.author, message.server):
-            await self.do_server_log(message=message)
+            if not flag:
+                await self.do_server_log(message=message)
             return
         elif self.is_long_member(message.author.joined_at, message.server):
             config = self.server_index[message.server.id]
             if message.author.id in config[11]:
                 this = config[11][message.author.id]
                 now = datetime.utcnow()
-                if self.limit_post(message.author, message.server, message.content, flg=flag) is True:
+                dis = self.limit_post(message.author, message.server, message.content, flg=flag)
+                if dis > 0:
                     try:
                         await self.delete_message(message)
-                        await self._write_to_modlog('deleted the message of ', message.author, message.server, 'rate limiting')
+                        if dis is 1:
+                            await self._write_to_modlog('deleted the message of ', message.author, message.server, '*duplicate message detected*```{}```'.format(message.content[:10]))
+                        elif dis is 2:
+                            await self._write_to_modlog('deleted the message of ', message.author, message.server, '*spam-esque duplicate characters detected*```{}```'.format(message.content[:10]))
+                        else:
+                            await self._write_to_modlog('deleted the message of ', message.author, message.server, '*rate limiting*```{}```'.format(message.content[:10]))
                         this[0] = now
                     except:
                         raise CommandError('Cannot delete message: \n{}'.format(message.content))
                 else:
-                    await self.do_server_log(message=message)
+                    if not flag:
+                        await self.do_server_log(message=message)
                 this[2].append(do_slugify(message.content))
                 self.server_index[message.server.id][11][message.author.id] = this
             else:
@@ -938,10 +954,16 @@ class AutoMod(discord.Client):
         else:
             config = self.server_index[message.server.id]
             if message.author.id in config[11]:
-                if self.strict_limit_post(message.author, message.server, message.content, flg=flag) is True:
+                dis = self.strict_limit_post(message.author, message.server, message.content, flg=flag)
+                if dis > 0:
                     try:
                         await self.delete_message(message)
-                        await self._write_to_modlog('deleted the message of ', message.author, message.server, 'rate limiting')
+                        if dis is 1:
+                            await self._write_to_modlog('deleted the message of ', message.author, message.server, 'duplicate message detected```{}```'.format(message.content[:10]))
+                        elif dis is 2:
+                            await self._write_to_modlog('deleted the message of ', message.author, message.server, 'spam-esque duplicate characters detected```{}```'.format(message.content[:10]))
+                        else:
+                            await self._write_to_modlog('deleted the message of ', message.author, message.server, 'rate limiting```{}```'.format(message.content[:10]))
                     except:
                         raise CommandError('Cannot delete message: \n{}'.format(message.content))
                 else:

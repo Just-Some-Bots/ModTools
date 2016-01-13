@@ -45,12 +45,12 @@ class Register(object):
     async def step_0(self, args):
         self.step = 1
         self.build_empty_config()
-        return Response('Hello {}! Let\'s get your server `{}` set up and ready to roll! A few prerequisites before we continue, '
+        return Response('Hello {}! Let\'s get your server `{}` set up and ready to roll! \nA few prerequisites before we continue, '
                         'you\'ll need to make sure the bot has all of the permissions of a regular Moderator *ie: Manage Server, Channels, Roles,'
-                        'Messages, ect.* Also be sure the check out {} for information on setting up the **Muted** role! Finally, for full syntax '
-                        'info or if you don\'t understand a step, be sure to check out {}!\n\nNow, for the configuration, make sure you respond with'
-                        ' **ONLY** the information needed.\n For the first step, I\'ll need to know which roles which you\'d like me omit from my'
-                        'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`'.format(
+                        'Messages, ect.* Also be sure the check out {} for information on setting up the **Muted** role! \nFinally, for full syntax '
+                        'info or if you don\'t understand a step, be sure to check out {}!\n\nNow, for the configuration; make sure you respond with'
+                        ' **ONLY** the information needed and use `!skip` if you don\'t wish to complete a step\nFor the first step, I\'ll need to '
+                        'know which roles which you\'d like me omit from my filtering\n\t`example input: \"Moderators, Admin, Trusted\"`'.format(
                             self.user.name, self.server.name, MUTED_IMGUR_SETUP_LINK, DOCUMENTATION_FOR_BOT
                         ),
                         pm=True
@@ -60,9 +60,12 @@ class Register(object):
         self.step = 2
         if args and '!skip' not in args:
             self.server_config_build[14] = args
+        elif '!skip' in args:
+            args = 'nothing since you decided to skip'
         else:
              args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
-        return Response('Okay, got it. Added {} to the list of white listed roles! Next up is the user groups you\'d like me to take orders from!'
+        return Response('Okay, got it. Added {} to the list of white listed roles!\n\nNext up, I need to know which user groups you\'d like me to '
+                        'take orders from! They\'ll have full access to all of my commands.'
                         '\n\t`example input: \"Moderators, Admin, Developers\"`'.format(
                             args
                         ),
@@ -73,9 +76,11 @@ class Register(object):
         self.step = 3
         if args and '!skip' not in args:
             self.server_config_build[3] = args
+        elif '!skip' in args:
+            args = 'nothing since you decided to skip'
         else:
             args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
-        return Response('Okay, got it. Added {} to the list of privileged roles! Next up is token reset time in seconds'
+        return Response('Okay, got it. Added {} to the list of privileged roles!\n\nNext up is token reset time in seconds'
                         '\n\t`example input: \"5\"`'.format(
                             args
                         ),
@@ -89,7 +94,7 @@ class Register(object):
             self.server_config_build[2] = this
         except:
             args[0] = '.....? Incorrect input received so setting it to the default. Added 5'
-        return Response('Okay, got it. Added `{}` as the Token Reset Time! Next up is the number of tokens given to a user'
+        return Response('Okay, got it. Added `{}` as the Token Reset Time!\n\nNext up is the number of tokens given to a user'
                         '\n\t`example input: \"5\"`'.format(
                             this
                         ),
@@ -106,7 +111,7 @@ class Register(object):
             self.server_config_build[1] = this
         else:
             args[0] = '.....? Incorrect input received so setting it to the default. Added 5'
-        return Response('Okay, got it. Added {} as the number of user given tokens per reset period! Next up is the word blacklist'
+        return Response('Okay, got it. Added {} as the number of user given tokens per reset period!\n\nNext up is the word filter'
                         '\n\t`example input: \"twitch.tv, discord.gg, faggots\"`'.format(
                             this
                         ),
@@ -120,9 +125,11 @@ class Register(object):
                 newargs.append(slugify(thing, stopwords=['https', 'http', 'www'], separator='_'))
 
             self.server_config_build[5] = newargs
+        elif '!skip' in args:
+            args = 'nothing since you decided to skip'
         else:
             args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
-        return Response('Okay, got it. Added {} to the list of black listed strings! Next up is the action to be taken upon finding a '
+        return Response('Okay, got it. Added {} to the list of black listed strings!\n\nNext up is the action to be taken upon finding a '
                         'blacklisted word or if a person is rate limited over 4 times! \nI\'ll take `kick / ban / mute / nothing` as input for this option!'
                         ' \n\t`example input: \"mute\"`'.format(
                             args
@@ -136,7 +143,7 @@ class Register(object):
                 self.server_config_build[6] = str(args[0])
         else:
             args = '....? You didn\'t specify anything I could use for a required option so instead I decided to add `nothing`'
-        return Response('Okay, got it. Added {} as the bad word action! Next up is the number of hours till a user is considered a long time member'
+        return Response('Okay, got it. Added {} as the bad word action!\n\nNext up is the number of hours till a user is considered a long time member'
                         '\n\t`example input: \"36\"`'.format(
                             args[0]
                         ),
@@ -149,7 +156,7 @@ class Register(object):
             self.server_config_build[7] = int(args[0])
         else:
             args = '.....? Incorrect input or nothing received so setting it to the default. Added the default of 12'
-        return Response('Okay, got it. Added {} as the number of hours till a user is considered a long time member! Next up is whether you want'
+        return Response('Okay, got it. Added {} as the number of hours till a user is considered a long time member!\n\nNext up is whether you want'
                         'moderator action reasons to be reported! I accept `True` or `False` as inputs'
                         '\n\t`example input: \"True\"`'.format(
                             args[0]
@@ -168,8 +175,8 @@ class Register(object):
         else:
             self.server_config_build[10] = False
             args = 'didn\'t get a good input so I default to False. I won\'t'
-        return Response('Okay, got it. I {} report action reasons! Finally, I\'ll need to know which channels you\'d like me to ignore all together.'
-                        '\nMake sure its sent as the Channel ID which can be found by putting a `\\`` before the channel tag `ie \#channel_name`'
+        return Response('Okay, got it. I {} report action reasons!\n\nFinally, I\'ll need to know which channels you\'d like me to ignore all together.'
+                        '\nMake sure its sent as the Channel ID which can be found by putting a `\\` before the channel tag `ie \#channel_name`'
                         '\n\t`example input: \"130787272781070337, 77514836912644096\"`'.format(
                             args
                         ),
@@ -179,6 +186,8 @@ class Register(object):
     async def step_9(self, args):
         if args and '!skip' not in args:
             self.server_config_build[12] = args
+        elif '!skip' in args:
+            args = 'nothing since you decided to skip'
         else:
             args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
         return Response('Okay, got it. Added {} to the list of ignored channels! \n\nThats it! Its over! Make sure you check out the syntax page'
