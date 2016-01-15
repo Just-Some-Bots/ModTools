@@ -47,23 +47,45 @@ class Register(object):
         self.build_empty_config()
         return Response('Hello {}! Let\'s get your server `{}` set up and ready to roll! \nA few prerequisites before we continue, '
                         'you\'ll need to make sure the bot has all of the permissions of a regular Moderator *ie: Manage Server, Channels, Roles,'
-                        'Messages, ect.* Also be sure the check out {} for information on setting up the **Muted** role! \nFinally, for full syntax '
-                        'info or if you don\'t understand a step, be sure to check out {}!\n\nNow, for the configuration; make sure you respond with'
-                        ' **ONLY** the information needed and use `!skip` if you don\'t wish to complete a step\nFor the first step, I\'ll need to '
-                        'know which roles which you\'d like me omit from my filtering\n\t`example input: \"Moderators, Admin, Trusted\"`'.format(
+                        'Messages, ect.* Also be sure the check out {} for information on setting up the **Muted** role! \n\nNow, to start the Registration'
+                        ' process, you need to go to {} and read through it. Follow the directions there and you\'ll be able to continue!'.format(
                             self.user.name, self.server.name, MUTED_IMGUR_SETUP_LINK, DOCUMENTATION_FOR_BOT
                         ),
                         pm=True
                         )
 
     async def step_1(self, args):
-        self.step = 2
+        if 'eggplant' not in args:
+            return Response('To continue the Registration process, you need to go to {} and read through everything. '
+                            'Follow the directions there and you\'ll be able to continue!'.format(DOCUMENTATION_FOR_BOT),
+                            pm=True
+                            )
+        else:
+            self.step = 2
+            return Response('Great! Now that you\'ve read everything, time for the configuration! \n\nPlease make sure you respond with **ONLY** the information needed. '
+                            'Also, use `!skip` if you don\'t wish to complete a step or `!restart`if you want to start over!\nFor the first step, I\'ll need to know which '
+                            'roles which you\'d like me omit from my filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+
+    async def step_2(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+
         if args and '!skip' not in args:
             self.server_config_build[14] = args
         elif '!skip' in args:
             args = 'nothing since you decided to skip'
         else:
-             args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
+        self.step = 3
         return Response('Okay, got it. Added {} to the list of white listed roles!\n\nNext up, I need to know which user groups you\'d like me to '
                         'take orders from! They\'ll have full access to all of my commands.'
                         '\n\t`example input: \"Moderators, Admin, Developers\"`'.format(
@@ -72,14 +94,23 @@ class Register(object):
                         pm=True
                         )
 
-    async def step_2(self, args):
-        self.step = 3
+    async def step_3(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+        self.step = 4
         if args and '!skip' not in args:
             self.server_config_build[3] = args
         elif '!skip' in args:
             args = 'nothing since you decided to skip'
         else:
-            args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
         return Response('Okay, got it. Added {} to the list of privileged roles!\n\nNext up is token reset time in seconds'
                         '\n\t`example input: \"5\"`'.format(
                             args
@@ -87,13 +118,22 @@ class Register(object):
                         pm=True
                         )
 
-    async def step_3(self, args):
-        self.step = 4
+    async def step_4(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+        self.step = 5
         try:
             this = int(args[0])
             self.server_config_build[2] = this
         except:
-            args[0] = '.....? Incorrect input received so setting it to the default. Added 5'
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
         return Response('Okay, got it. Added `{}` as the Token Reset Time!\n\nNext up is the number of tokens given to a user'
                         '\n\t`example input: \"5\"`'.format(
                             this
@@ -101,24 +141,37 @@ class Register(object):
                         pm=True
                         )
 
-    async def step_4(self, args):
-        self.step = 5
+    async def step_5(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+        self.step = 6
         try:
             this = int(args[0])
-        except:
-            pass
-        if isinstance(this, int):
             self.server_config_build[1] = this
-        else:
-            args[0] = '.....? Incorrect input received so setting it to the default. Added 5'
+        except:
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
         return Response('Okay, got it. Added {} as the number of user given tokens per reset period!\n\nNext up is the word filter'
                         '\n\t`example input: \"twitch.tv, discord.gg, faggots\"`'.format(
                             this
                         ),
                         pm=True
                         )
-    async def step_5(self, args):
-        self.step = 6
+    async def step_6(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+        self.step = 7
         if args and '!skip' not in args:
             newargs = []
             for thing in args:
@@ -128,7 +181,9 @@ class Register(object):
         elif '!skip' in args:
             args = 'nothing since you decided to skip'
         else:
-            args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
         return Response('Okay, got it. Added {} to the list of black listed strings!\n\nNext up is the action to be taken upon finding a '
                         'blacklisted word or if a person is rate limited over 4 times! \nI\'ll take `kick / ban / mute / nothing` as input for this option!'
                         ' \n\t`example input: \"mute\"`'.format(
@@ -137,12 +192,21 @@ class Register(object):
                         pm=True
                         )
 
-    async def step_6(self, args):
-        self.step = 7
+    async def step_7(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+        self.step = 8
         if 'kick' or 'ban' or 'mute' or 'nothing' in args:
                 self.server_config_build[6] = str(args[0])
         else:
-            args = '....? You didn\'t specify anything I could use for a required option so instead I decided to add `nothing`'
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
         return Response('Okay, got it. Added {} as the bad word action!\n\nNext up is the number of hours till a user is considered a long time member'
                         '\n\t`example input: \"36\"`'.format(
                             args[0]
@@ -150,12 +214,21 @@ class Register(object):
                         pm=True
                         )
 
-    async def step_7(self, args):
-        self.step = 8
+    async def step_8(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+        self.step = 9
         if args:
             self.server_config_build[7] = int(args[0])
         else:
-            args = '.....? Incorrect input or nothing received so setting it to the default. Added the default of 12'
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
         return Response('Okay, got it. Added {} as the number of hours till a user is considered a long time member!\n\nNext up is whether you want'
                         'moderator action reasons to be reported! I accept `True` or `False` as inputs'
                         '\n\t`example input: \"True\"`'.format(
@@ -164,8 +237,15 @@ class Register(object):
                         pm=True
                         )
 
-    async def step_8(self, args):
-        self.step = 9
+    async def step_9(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
+        self.step = 10
         if 'True' in args:
             self.server_config_build[10] = True
             args = 'will'
@@ -173,8 +253,9 @@ class Register(object):
             self.server_config_build[10] = False
             args = 'wont'
         else:
-            self.server_config_build[10] = False
-            args = 'didn\'t get a good input so I default to False. I won\'t'
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
         return Response('Okay, got it. I {} report action reasons!\n\nFinally, I\'ll need to know which channels you\'d like me to ignore all together.'
                         '\nMake sure its sent as the Channel ID which can be found by putting a `\\` before the channel tag `ie \#channel_name`'
                         '\n\t`example input: \"130787272781070337, 77514836912644096\"`'.format(
@@ -183,13 +264,22 @@ class Register(object):
                         pm=True
                         )
 
-    async def step_9(self, args):
+    async def step_10(self, args):
+        if '!restart' in args:
+            self.step = 2
+            return Response('Please make sure you respond with **ONLY** the information needed. Also, use `!skip` if you don\'t wish to complete a step or '
+                            '`!restart`if you want to start over!\nFor the first step, I\'ll need to know which roles which you\'d like me omit from my '
+                            'filtering\n\t`example input: \"Moderators, Admin, Trusted\"`',
+                            pm=True
+                            )
         if args and '!skip' not in args:
             self.server_config_build[12] = args
         elif '!skip' in args:
             args = 'nothing since you decided to skip'
         else:
-            args = '.....? Incorrect input or nothing received so setting it to the default. Added nothing'
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again and make sure you aren\'t'
+                            'including the quotes as that will mess up the input!',
+                            pm=True)
         return Response('Okay, got it. Added {} to the list of ignored channels! \n\nThats it! Its over! Make sure you check out the syntax page'
                         ' so that you can use me properly and I hope you have a nice day :D'.format(
                             args

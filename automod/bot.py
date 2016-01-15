@@ -91,7 +91,7 @@ class AutoMod(discord.Client):
         except:
             return False
 
-    def strict_limit_post(self, author, server, content, flg=None):
+    def strict_limit_post(self, author, server, content, limit_post_flag=None):
         config = self.server_index[server.id]
         author_index = config[11][author.id]
         last_post_time = author_index[0]
@@ -116,7 +116,7 @@ class AutoMod(discord.Client):
             self.server_index[server.id][11][author.id] = author_index
             return 2
 
-        if now - last_post_time < timedelta(minutes=10 and not flg):
+        if now - last_post_time < timedelta(minutes=10) and not limit_post_flag:
             for last_content in last_timeframe_content:
                 if compare_strings(last_content, content) > 75:
                     author_index[1] -= 1
@@ -134,7 +134,7 @@ class AutoMod(discord.Client):
         self.server_index[server.id][11][author.id] = author_index
         return 0
 
-    def limit_post(self, author, server, content, flg=None):
+    def limit_post(self, author, server, content, limit_post_flag=None):
         config = self.server_index[server.id]
         author_index = config[11][author.id]
         last_post_time = author_index[0]
@@ -159,7 +159,7 @@ class AutoMod(discord.Client):
             self.server_index[server.id][11][author.id] = author_index
             return 2
 
-        if now - last_post_time < timedelta(minutes=1 and not flg):
+        if now - last_post_time < timedelta(minutes=1) and not limit_post_flag:
             for last_content in last_timeframe_content:
                 if compare_strings(last_content, content) > 85:
                     author_index[1] -= 1
@@ -182,24 +182,23 @@ class AutoMod(discord.Client):
         print('Connected!\n')
         print('Username: ' + self.user.name)
         print('ID: ' + self.user.id)
-        print('--Server List--')
+        print('--Servers Currently not Registered--')
         for server in self.servers:
-            print(server.name+' : '+server.id)
-            # if server.id in self.server_index:
-            #     self.server_index[server.id][0] = self.get_bans(server)
+            if server.id not in self.server_index:
+                print("{} : {}".format(server.name, server.id))
         print()
         await self.backup_list()
 
     async def server_timer(self, server):
         await asyncio.sleep(86400)
-        print('BACKING UP JSON')
+        print('Server Timer has run out, leaving')
         if server.id not in self.server_index:
             await self.leave_server(server)
             print('{} timed out after 24 hours')
 
     async def backup_list(self):
         await asyncio.sleep(900)
-        print('BACKING UP JSON')
+        print('-----------BACKING UP JSON-----------')
         backup_config(self.server_index)
         await self.backup_list()
 
@@ -213,8 +212,11 @@ class AutoMod(discord.Client):
         if not reason:
             reason = "***No Reason Specified***"
         content = re.sub(r'".+".*?(".+")', '', message.content)
-        await self.send_message(discord.Object(id=config[8]), 'At *{}*, **{}** has used the command ```{}```Reason: `{}`'
-                                                              ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), author, content, reason))
+        try:
+            await self.send_message(discord.Object(id=config[8]), 'At *{}*, **{}** has used the command ```{}```Reason: `{}`'
+                                                                  ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), author, content, reason))
+        except discord.NotFound:
+            print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
 
     async def _write_to_modlog(self, autoaction, offender, server, reason):
         if server.id in self.server_index:
@@ -225,12 +227,15 @@ class AutoMod(discord.Client):
             return
         if not reason:
             reason = "***No Reason Specified***"
-        await self.send_message(discord.Object(id=config[8]), 'At *{}*, I automatically {} **{}** for {}'
-                                                              ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), autoaction, offender, reason))
+        try:
+            await self.send_message(discord.Object(id=config[8]), 'At *{}*, I automatically {} **{}** for {}'
+                                                                  ''.format(datetime.utcnow().strftime("%d-%m-%Y %H:%M:%S"), autoaction, offender, reason))
+        except discord.NotFound:
+            print('ERROR FOUND ON : {} : {}'.format(server.name, server.id))
 
     # TODO: Make this good code that is mine, not stuff taken from old pre async branch code written by @Sharpwaves
-    async def do_server_log(self, message=None, flag=None, member=None, before=None, after=None):
-        if message and not flag:
+    async def do_server_log(self, message=None, log_flag=None, member=None, before=None, after=None):
+        if message and not log_flag:
             if message.server.id in self.server_index:
                 config = self.server_index[message.server.id]
             else:
@@ -241,43 +246,54 @@ class AutoMod(discord.Client):
                 return
             channel_trimmed = message.channel.name.upper()[:10]
             if len(message.clean_content) > 1800:
-                msg = '**__{0}|__ {1}:** {2}'.format(channel_trimmed, message.author.name, message.clean_content)
+                msg = '**__{}|__ {}:** {}'.format(channel_trimmed, message.author.name, message.clean_content)
                 split = [msg[i:i+1800] for i in range(0, len(msg), 1800)]
                 for x in split:
-                    await self.send_message(discord.Object(id=config[9]), x)
+                    try:
+                        await self.send_message(discord.Object(config[9]), x)
+                    except discord.NotFound:
+                        print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
             else:
                 try:
-                    msg = '**__{0}|__ {1} uploaded an attachment:** {2}'.format(channel_trimmed, message.author.name, message.attachments[0]['url'])
-                    await self.send_message(discord.Object(id=config[9]), msg)
+                    msg = '**__{}|__ {} uploaded an attachment:** {}'.format(channel_trimmed, message.author.name, message.attachments[0]['url'])
+                    await self.send_message(discord.Object(config[9]), msg)
                 except:
                     pass
                 if message.clean_content != '':
-                    msg = '**__{0}|__ {1}:** {2}'.format(channel_trimmed, message.author.name, message.clean_content)
-                    await self.send_message(discord.Object(id=config[9]), msg)
-        elif flag:
-            if flag == 'join':
+                    msg = '**__{}|__ {}:** {}'.format(channel_trimmed, message.author.name, message.clean_content)
+                    try:
+                        await self.send_message(discord.Object(config[9]), msg)
+                    except discord.NotFound:
+                        print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+        elif log_flag:
+            if log_flag == 'join':
                 if member.server.id in self.server_index:
                     config = self.server_index[member.server.id]
                 else:
                     return
                 if not config[9]:
                     return
-                await self.send_message(discord.Object(id=config[9]), '**++++++++++++++++++++++++**\n**{} '
+                try:
+                    await self.send_message(discord.Object(config[9]), '**++++++++++++++++++++++++**\n**{} '
                                                                       'JOINED THE SERVER**\n**++++++++++++++++++++++++'
                                                                       '**'.format(member.name.upper()))
-            elif flag == 'remove':
+                except discord.NotFound:
+                        print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+            elif log_flag == 'remove':
                 if member.server.id in self.server_index:
                     config = self.server_index[member.server.id]
                 else:
                     return
                 if not config[9]:
                     return
-                await self.send_message(discord.Object(id=config[9]), '**--------------------------------------**'
+                try:
+                    await self.send_message(discord.Object(config[9]), '**--------------------------------------**'
                                                                       '\n**{} LEFT THE SERVER**\n**'
                                                                       '--------------------------------------**'
                                                                       ''.format(member.name.upper()))
-            elif flag == 'edit':
-
+                except discord.NotFound:
+                        print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+            elif log_flag == 'edit':
                 if before.server.id in self.server_index:
                     config = self.server_index[before.server.id]
                 else:
@@ -288,14 +304,20 @@ class AutoMod(discord.Client):
                     return
                 channel_trimmed = after.channel.name.upper()[:10]
                 if (len(before.clean_content) + len(after.clean_content)) > 1800:
-                    msg = '**__{0}|__ {1} edited their message**\n**Before:** {2}\n**+After:** {3}'.format(channel_trimmed, after.author.name, before.clean_content, after.clean_content)
+                    msg = '**__{}|__ {} edited their message**\n**Before:** {}\n**+After:** {}'.format(channel_trimmed, after.author.name, before.clean_content, after.clean_content)
                     split = [msg[i:i+1800] for i in range(0, len(msg), 1800)]
                     for x in split:
-                        await self.send_message(discord.Object(id=config[9]), x)
+                        try:
+                            await self.send_message(discord.Object(config[9]), x)
+                        except discord.NotFound:
+                            print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
                 else:
-                    msg = '**__{0}|__ {1} edited their message**\n**Before:** {2}\n**+After:** {3}'.format(channel_trimmed, after.author.name, before.clean_content, after.clean_content)
-                    await self.send_message(discord.Object(id=config[9]), msg)
-            elif flag == 'delete':
+                    msg = '**__{}|__ {} edited their message**\n**Before:** {}\n**+After:** {}'.format(channel_trimmed, after.author.name, before.clean_content, after.clean_content)
+                    try:
+                        await self.send_message(discord.Object(config[9]), msg)
+                    except discord.NotFound:
+                        print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+            elif log_flag == 'delete':
                 if message.server.id in self.server_index:
                     config = self.server_index[message.server.id]
                 else:
@@ -306,14 +328,20 @@ class AutoMod(discord.Client):
                     return
                 channel_trimmed = message.channel.name.upper()[:10]
                 if len(message.clean_content) > 1800:
-                    msg = '**__{0}|__ {1} deleted their message:** {2}'.format(channel_trimmed, message.author.name, message.clean_content)
+                    msg = '**__{}|__ {} deleted their message:** {}'.format(channel_trimmed, message.author.name, message.clean_content)
                     split = [msg[i:i+1800] for i in range(0, len(msg), 1800)]
                     for x in split:
-                        await self.send_message(discord.Object(id=config[9]), x)
+                        try:
+                            await self.send_message(discord.Object(config[9]), x)
+                        except discord.NotFound:
+                            print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
                 else:
                     if message.clean_content != '':
-                        msg = '**__{0}|__ {1} deleted their message:** {2}'.format(channel_trimmed, message.author.name, message.clean_content)
-                        await self.send_message(discord.Object(id=config[9]), msg)
+                        msg = '**__{}|__ {} deleted their message:** {}'.format(channel_trimmed, message.author.name, message.clean_content)
+                        try:
+                            await self.send_message(discord.Object(id=config[9]), msg)
+                        except discord.NotFound:
+                            print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
 
     async def handle_register(self, message, author, server):
         """
@@ -321,6 +349,7 @@ class AutoMod(discord.Client):
         If the user who starts the registration has the `AutoManager` role, start the registration process.
         """
         if self.has_roles(author, server, register=True):
+            print('Registration Started for "{}" by: {}'.format(server.name, author.name))
             if author.id == self.user.id:
                 return True
             if server.id in self.server_index:
@@ -441,16 +470,18 @@ class AutoMod(discord.Client):
                 username = None
             await self.write_to_modlog(message, author, server, reason)
             if not username:
-                logs = await self.logs_from(channel, int(count))
-                for msg in logs:
+                # logs = await self.logs_from(channel, int(count))
+                # for msg in logs:
+                async for msg in self.logs_from(channel, int(count)):
                     await self.delete_message(msg)
             else:
                 user_id = extract_user_id(username)
                 if not user_id:
                     raise CommandError('Invalid user specified')
                 culprit = discord.utils.get(server.members, id=str(user_id))
-                logs = await self.logs_from(channel)
-                for msg in logs:
+                # logs = await self.logs_from(channel)
+                # for msg in logs:
+                async for msg in self.logs_from(channel):
                     if msg.author.id == culprit.id:
                         await self.delete_message(msg)
         # ALLOWS USERS TO REMOVE THEIR MESSAGES EVEN IF THEY AREN'T A MOD
@@ -660,6 +691,7 @@ class AutoMod(discord.Client):
         """
         if self.has_roles(author, server):
             inv = await self.create_invite(server, max_uses=3, xkcd=True)
+            print('Alert Command on Server: {}'.format(server.name))
             for servers in self.servers:
                 if servers.id == RHINO_SERVER:
                     for channel in servers.channels:
@@ -676,6 +708,14 @@ class AutoMod(discord.Client):
         """
         if self.has_roles(author, server):
             return Response('PONG!', reply=True)
+
+    async def handle_help(self, message, author, server):
+        """
+        Usage: {command_prefix}help
+        Replies with the link to the commands page!
+        """
+        if self.has_roles(author, server):
+            return Response('https://github.com/SexualRhinoceros/ModTools/wiki/Main#commands', reply=True)
 
     async def handle_info(self, message, author, server):
         """
@@ -759,43 +799,71 @@ class AutoMod(discord.Client):
             return Response('its been done', reply=True)
         return
 
-    async def handle_joinserver(self, author, server_link, flagg=None):
+    async def handle_remind(self, author, server):
+        """
+        Usage: {command_prefix}remind
+        Sends a reminder to register to all nonregistered servers
+        """
+        if author.id == self.config.master_id:
+            for server in self.servers:
+                if server.id not in self.server_index:
+                    try:
+                        await self.send_message(server, 'Hello! Just a reminder from your friendly robo-Moderator that I don\'t have any function'
+                                                        ' until someone goes through the registration process with me!\nIf a Moderator with a role named '
+                                                        '`{}` would run the command `{}register`, I can start helping keep things clean!'.format(
+                                                            BOT_HANDLER_ROLE, self.config.command_prefix))
+                    except discord.Forbidden:
+                        print('Cannot remind, server\'s default channel is locked : {}'.format(server.name))
+            return Response('its been done', reply=True)
+        return
+
+    async def handle_joinserver(self, author, server_link, join_flag=None):
         """
         Usage {command_prefix}joinserver [Server Link]
-        Asks the bot to join a server. [todo: add info about if it breaks or whatever]
+        Asks the bot to join a server.
         """
         try:
             inv = await self.get_invite(server_link)
             self.user_invite_dict[inv.server.id] = author.id
             await self.accept_invite(server_link)
-            if flagg:
+            print('Joined Server: {}'.format(inv.server.name))
+            if join_flag:
                 return True
             return False
         except:
-            if not flagg:
+            if not join_flag:
                 raise CommandError('Invalid URL provided:\n\t{}\n'.format(server_link))
 
     async def on_server_join(self, server):
-        await self.send_message(server.default_channel, 'Hello! I\'m your friendly robo-Moderator and was invited by <@{}> to make the lives of everyone easier!'
-                                                        '\nIf a Moderator with a role named `{}` would run the command `{}register`, I can start helping'
-                                                        ' keep things clean!'.format(
-                                                         self.user_invite_dict[server.id], BOT_HANDLER_ROLE, self.config.command_prefix))
+        try:
+            await self.send_message(server.default_channel, 'Hello! I\'m your friendly robo-Moderator and was invited by <@{}> to make the lives of everyone easier!'
+                                                            '\nIf a Moderator with a role named `{}` would run the command `{}register`, I can start helping'
+                                                            ' keep things clean!'.format(
+                                                                self.user_invite_dict[server.id], BOT_HANDLER_ROLE, self.config.command_prefix))
+        except discord.Forbidden:
+            print('Cannot greet, server\'s default channel is locked')
         await self.server_timer(server)
 
+    async def on_server_remove(self, server):
+        print('Removed from Server: {}'.format(server.name))
+
     async def on_message_edit(self, before, after):
+
+        if before.content == after.content:
+            return
         if before.author.id == self.user.id:
             return
-        await self.do_server_log(before=before, after=after, flag='edit')
+        await self.do_server_log(before=before, after=after, log_flag='edit')
         await self.on_message(after, flag=True)
 
     async def on_message_delete(self, message):
-        await self.do_server_log(message=message, flag='delete')
+        await self.do_server_log(message=message, log_flag='delete')
 
     async def on_member_remove(self, member):
-        await self.do_server_log(self, member=member, flag='remove')
+        await self.do_server_log(self, member=member, log_flag='remove')
 
     async def on_member_join(self, member):
-        await self.do_server_log(self, member=member, flag='join')
+        await self.do_server_log(self, member=member, log_flag='join')
 
     async def on_message(self, message, flag=None):
 
@@ -803,6 +871,13 @@ class AutoMod(discord.Client):
             return
 
         if message.channel.is_private:
+            try:
+                this = await self.handle_joinserver(message.author, message.content, join_flag=True)
+                if this and this is not False:
+                    await self.send_message(message.author, 'I joined the requested server. <333')
+                    return
+            except:
+                pass
             if message.author.id in self.register_instances:
                 register_instance = self.register_instances[message.author.id]
 
@@ -816,17 +891,12 @@ class AutoMod(discord.Client):
                         await self.send_message(message.author, response.content)
 
                     if response.trigger:
+                        print('Registration Completed by: {}'.format(message.author.name))
                         self.server_index[register_instance.server.id] = register_instance.return_server_config()
                         del self.register_instances[message.author.id]
                     return
             else:
                 await self.send_message(message.channel, 'You cannot use this bot in private messages.')
-            try:
-                this = await self.handle_joinserver(message.author, message.content, flagg=True)
-                if this is not False:
-                    await self.send_message(message.author, 'I have joined that server.')
-            except:
-                pass
             return
 
         message_content = message.content.strip()
@@ -894,8 +964,11 @@ class AutoMod(discord.Client):
                             '```\n%s\n```' % docs.format(command_prefix=self.config.command_prefix)
                     )
                     return
-
-                response = await handler(**handler_kwargs)
+                try:
+                    response = await handler(**handler_kwargs)
+                except Exception as e:
+                    response = None
+                    print('Exception on {}({}) in channel {}\n\t{}'.format(message.server.name, message.server.id, message.channel.name, e))
                 if response and isinstance(response, Response):
                     content = response.content
                     if response.pm:
@@ -903,11 +976,16 @@ class AutoMod(discord.Client):
                     if response.reply:
                         content = '%s, %s' % (message.author.mention, content)
                         route = message.channel
-
-                    await self.send_message(route, content)
+                    try:
+                        await self.send_message(route, content)
+                    except:
+                        pass
 
                     if response.delete_incoming is True:
-                        self.delete_message(message)
+                        try:
+                            self.delete_message(message)
+                        except discord.NotFound:
+                            pass
 
             except CommandError as e:
                 await self.send_message(message.channel, '```\n%s\n```' % e.message)
@@ -930,7 +1008,7 @@ class AutoMod(discord.Client):
             if message.author.id in config[11]:
                 this = config[11][message.author.id]
                 now = datetime.utcnow()
-                dis = self.limit_post(message.author, message.server, message.content, flg=flag)
+                dis = self.limit_post(message.author, message.server, message.content, limit_post_flag=flag)
                 if dis > 0:
                     try:
                         await self.delete_message(message)
@@ -942,19 +1020,21 @@ class AutoMod(discord.Client):
                             await self._write_to_modlog('deleted the message of ', message.author, message.server, '*rate limiting*```{}```'.format(message.content[:10]))
                         this[0] = now
                     except:
-                        raise CommandError('Cannot delete message: \n{}'.format(message.content))
+                        print('Cannot delete, no permissions : {}'.format(message.server.name))
                 else:
                     if not flag:
                         await self.do_server_log(message=message)
                 this[2].append(do_slugify(message.content))
                 self.server_index[message.server.id][11][message.author.id] = this
             else:
+                if not flag:
+                    await self.do_server_log(message=message)
                 this = [datetime.utcnow(), config[1] + 2, [message.content]]
                 self.server_index[message.server.id][11][message.author.id] = this
         else:
             config = self.server_index[message.server.id]
             if message.author.id in config[11]:
-                dis = self.strict_limit_post(message.author, message.server, message.content, flg=flag)
+                dis = self.strict_limit_post(message.author, message.server, message.content, limit_post_flag=flag)
                 if dis > 0:
                     try:
                         await self.delete_message(message)
@@ -965,14 +1045,17 @@ class AutoMod(discord.Client):
                         else:
                             await self._write_to_modlog('deleted the message of ', message.author, message.server, 'rate limiting```{}```'.format(message.content[:10]))
                     except:
-                        raise CommandError('Cannot delete message: \n{}'.format(message.content))
+                        print('Cannot delete, no permissions : {}'.format(message.server.name))
                 else:
-                    await self.do_server_log(message=message)
+                    if not flag:
+                        await self.do_server_log(message=message)
                 this = config[11][message.author.id]
                 this[0] = datetime.utcnow()
                 this[2].append(do_slugify(message.content))
                 self.server_index[message.server.id][11][message.author.id] = this
             else:
+                if not flag:
+                    await self.do_server_log(message=message)
                 this = [datetime.utcnow(), config[1], [message.content]]
                 self.server_index[message.server.id][11][message.author.id] = this
         if not self.is_checked(message.author, message.server):
@@ -988,20 +1071,32 @@ class AutoMod(discord.Client):
                     action = self.server_index[message.server.id][6]
                     if 'kick' in action:
                         await self._write_to_modlog('kicked', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
-                        self.kick(message.author)
+                        try:
+                            self.kick(message.author)
+                        except:
+                            print('Cannot kick, no permissions : {}'.format(message.server.name))
                     elif 'ban' in action:
                         await self._write_to_modlog('banned', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
-                        self.ban(message.author, 7)
+                        try:
+                            self.ban(message.author, 7)
+                        except:
+                            print('Cannot ban, no permissions : {}'.format(message.server.name))
                         return
                     elif 'mute' in action:
                         await self._write_to_modlog('muted', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
                         mutedrole = discord.utils.get(message.server.roles, name='Muted')
-                        await self.add_roles(message.author, mutedrole)
+                        try:
+                            await self.add_roles(message.author, mutedrole)
+                        except:
+                            print('Cannot mute, no permissions : {}'.format(message.server.name))
                     elif 'nothing' in action:
-                        await self._write_to_modlog('flagged', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                        await self._write_to_modlog('join_flaged', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
                     else:
                         return
-                    await self.delete_message(message)
+                    try:
+                        await self.delete_message(message)
+                    except discord.Forbidden:
+                        print('Cannot delete, no permissions : {}'.format(message.server.name))
 
 if __name__ == '__main__':
     bot = AutoMod()

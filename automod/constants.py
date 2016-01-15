@@ -1,6 +1,6 @@
 DISCORD_MSG_CHAR_LIMIT = 2000
 MUTED_IMGUR_SETUP_LINK = 'http://imgur.com/a/iox5a'
-DOCUMENTATION_FOR_BOT = 'https://github.com/SexualRhinoceros/ModTools/wiki/Documentation'
+DOCUMENTATION_FOR_BOT = 'https://github.com/SexualRhinoceros/ModTools/wiki/Main'
 BOT_HANDLER_ROLE = 'AutoModManager'
 RHINO_SERVER = '129489631539494912'
 RHINO_SERVER_CHANNEL = '136304202979737600'
