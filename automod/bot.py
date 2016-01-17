@@ -54,7 +54,7 @@ class AutoMod(discord.Client):
                 server_index[name] = load_json(fileroute)
         return server_index
 
-    def has_roles(self, user, check_server, register=False):
+    def has_roles(self, channel, user, check_server, register=False):
         if register is False:
             if check_server.id not in self.server_index:
                 return
@@ -62,7 +62,8 @@ class AutoMod(discord.Client):
             try:
                 for role in user.roles:
                     try:
-                        if BOT_HANDLER_ROLE.lower() in role.name.lower():
+                        perms = user.permissions_in(channel)
+                        if perms.manage_roles:
                             return True
                         elif role.name in self.server_index[check_server.id][14] or user.id in self.server_index[check_server.id][15]:
                             return True
@@ -253,6 +254,8 @@ class AutoMod(discord.Client):
                         await self.send_message(discord.Object(config[9]), x)
                     except discord.NotFound:
                         print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                    except discord.Forbidden:
+                        print('Cannot send message to server log, no permissions : {}'.format(message.server.name))
             else:
                 try:
                     msg = '**__{}|__ {} uploaded an attachment:** {}'.format(channel_trimmed, message.author.name, message.attachments[0]['url'])
@@ -265,6 +268,8 @@ class AutoMod(discord.Client):
                         await self.send_message(discord.Object(config[9]), msg)
                     except discord.NotFound:
                         print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                    except discord.Forbidden:
+                        print('Cannot send message to server log, no permissions : {}'.format(message.server.name))
         elif log_flag:
             if log_flag == 'join':
                 if member.server.id in self.server_index:
@@ -279,6 +284,8 @@ class AutoMod(discord.Client):
                                                                       '**'.format(member.name.upper()))
                 except discord.NotFound:
                         print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                except discord.Forbidden:
+                    print('Cannot send message to server log, no permissions : {}'.format(message.server.name))
             elif log_flag == 'remove':
                 if member.server.id in self.server_index:
                     config = self.server_index[member.server.id]
@@ -292,7 +299,9 @@ class AutoMod(discord.Client):
                                                                       '--------------------------------------**'
                                                                       ''.format(member.name.upper()))
                 except discord.NotFound:
-                        print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                    print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                except discord.Forbidden:
+                    print('Cannot send message to server log, no permissions : {}'.format(message.server.name))
             elif log_flag == 'edit':
                 if before.server.id in self.server_index:
                     config = self.server_index[before.server.id]
@@ -311,12 +320,16 @@ class AutoMod(discord.Client):
                             await self.send_message(discord.Object(config[9]), x)
                         except discord.NotFound:
                             print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                        except discord.Forbidden:
+                            print('Cannot send message to server log, no permissions : {}'.format(message.server.name))
                 else:
                     msg = '**__{}|__ {} edited their message**\n**Before:** {}\n**+After:** {}'.format(channel_trimmed, after.author.name, before.clean_content, after.clean_content)
                     try:
                         await self.send_message(discord.Object(config[9]), msg)
                     except discord.NotFound:
                         print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                    except discord.Forbidden:
+                        print('Cannot send message to server log, no permissions : {}'.format(message.server.name))
             elif log_flag == 'delete':
                 if message.server.id in self.server_index:
                     config = self.server_index[message.server.id]
@@ -329,26 +342,30 @@ class AutoMod(discord.Client):
                 channel_trimmed = message.channel.name.upper()[:10]
                 if len(message.clean_content) > 1800:
                     msg = '**__{}|__ {} deleted their message:** {}'.format(channel_trimmed, message.author.name, message.clean_content)
-                    split = [msg[i:i+1800] for i in range(0, len(msg), 1800)]
+                    split = [msg[i:i + 1800] for i in range(0, len(msg), 1800)]
                     for x in split:
                         try:
                             await self.send_message(discord.Object(config[9]), x)
                         except discord.NotFound:
                             print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                        except discord.Forbidden:
+                            print('Cannot send message to server log, no permissions : {}'.format(message.server.name))
                 else:
                     if message.clean_content != '':
                         msg = '**__{}|__ {} deleted their message:** {}'.format(channel_trimmed, message.author.name, message.clean_content)
                         try:
-                            await self.send_message(discord.Object(id=config[9]), msg)
+                            await self.send_message(discord.Object(config[9]), msg)
                         except discord.NotFound:
                             print('ERROR FOUND ON : {} : {} : {}'.format(message.server.name, message.server.id, message.channel.name))
+                        except discord.Forbidden:
+                            print('Cannot send message to server log, no permissions : {}'.format(message.server.name))
 
     async def handle_register(self, message, author, server):
         """
         Usage: {command_prefix}register
         If the user who starts the registration has the `AutoManager` role, start the registration process.
         """
-        if self.has_roles(author, server, register=True):
+        if self.has_roles(message.channel, author, server, register=True):
             print('Registration Started for "{}" by: {}'.format(server.name, author.name))
             if author.id == self.user.id:
                 return True
@@ -376,7 +393,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}mute @UserName <time> "<reason>"
         Mute the user indefinitley unless given a time, then only mute till the time is up
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
@@ -404,7 +421,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}unmute @UserName "<reason>"
         Unmutes the user defined.
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
@@ -424,7 +441,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}addroles @UserName "<role name>" "<reason>"
         Assigns the user the roles defined
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
@@ -443,7 +460,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}removerole @UserName "<role name>" "<reason>"
         Removes the role defined from the user
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
@@ -464,7 +481,7 @@ class AutoMod(discord.Client):
         Removes all messages from chat unless a user is specified;
         then remove all messages by the user.
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             if username and not reason and not username.startswith('<@'):
                 reason = username
                 username = None
@@ -496,7 +513,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}ban @UserName "<reason>"
         Bans the user from the server and removes 7 days worth of their messages
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
@@ -509,7 +526,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}kick @Username "<reason>"
         Kicks the user from the server.
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
@@ -522,15 +539,41 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}whitelist @UserName *OR* "<role name>" "<reason>"
         Adds the user or role to the whitelist so they're ignored by the filters.
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             config = self.server_index[server.id]
             try:
                 user_id = extract_user_id(agent)
-                config[4].append(user_id)
+                role = discord.utils.get(server.members, id=str(user_id))
+                if not role:
+                    config[4].append(role.id)
             except:
                 try:
                     role = discord.utils.get(server.roles, name=agent)
+                    if not role:
+                        int('this')
                     config[3].append(role.name)
+                except:
+                    raise CommandError('Invalid user / role specified : {}'.format(agent))
+            self.server_index[server.id] = config
+            await self.write_to_modlog(message, author, server, reason)
+
+    async def handle_modlist(self, message, author, server, agent, reason=None):
+        """
+        Usage: {command_prefix}modlist @UserName *OR* "<role name>" "<reason>"
+        Adds the user or role to the list of people I allow to use my commands!
+        """
+        if self.has_roles(message.channel, author, server):
+            config = self.server_index[server.id]
+            try:
+                user_id = extract_user_id(agent)
+                role = discord.utils.get(server.members, id=str(user_id))
+                if not role:
+                    config[15].append(role.id)
+            except:
+                try:
+                    role = discord.utils.get(server.roles, name=agent)
+                    if not role:
+                        config[14].append(role.name)
                 except:
                     raise CommandError('Invalid user / role specified : {}'.format(agent))
             self.server_index[server.id] = config
@@ -541,7 +584,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}blacklist "<string>" "<reason>"
         Adds the specified word / words (string) to the blacklist!
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             config = self.server_index[server.id]
             config[5].append(do_slugify(string_arg))
             self.server_index[server.id] = config
@@ -552,9 +595,12 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}remblacklist "<string>" "<reason>"
         Removes the specified word / words (string) from the blacklist!
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             config = self.server_index[server.id]
-            config[5].remove(do_slugify(string_arg))
+            try:
+                config[5].remove(do_slugify(string_arg))
+            except ValueError:
+                raise CommandError('No such item in blacklist : {}'.format(string_arg))
             self.server_index[server.id] = config
             await self.write_to_modlog(message, author, server, reason)
 
@@ -563,15 +609,44 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}whitelist @UserName *OR* "<role name>" "<reason>"
         Removes the user or role from the whitelist so they're no longer ignored by the filters.
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             config = self.server_index[server.id]
             try:
                 user_id = extract_user_id(agent)
-                config[4].remove(user_id)
+                role = discord.utils.get(server.members, id=str(user_id))
+                if not role:
+                    int('this')
+                config[4].remove(role.id)
             except:
                 try:
                     role = discord.utils.get(server.roles, name=agent)
+                    if not role:
+                        int('this')
                     config[3].remove(role.name)
+                except:
+                    raise CommandError('Invalid user / role specified : {}'.format(agent))
+            self.server_index[server.id] = config
+            await self.write_to_modlog(message, author, server, reason)
+
+    async def handle_remmodlist(self, message, author, server, agent, reason=None):
+        """
+        Usage: {command_prefix}remmodlist @UserName *OR* "<role name>" "<reason>"
+        Removes the user or role from the list of people I take commands from.
+        """
+        if self.has_roles(message.channel, author, server):
+            config = self.server_index[server.id]
+            try:
+                user_id = extract_user_id(agent)
+                role = discord.utils.get(server.members, id=str(user_id))
+                if not role:
+                    int('this')
+                config[15].remove(role.id)
+            except:
+                try:
+                    role = discord.utils.get(server.roles, name=agent)
+                    if not role:
+                        int('this')
+                    config[14].remove(role.name)
                 except:
                     raise CommandError('Invalid user / role specified : {}'.format(agent))
             self.server_index[server.id] = config
@@ -594,7 +669,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}settokens <number> "<reason>"
         Sets the number of tokens a user has to spend in a reset period
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             try:
                 tokens = int(tokens)
             except:
@@ -609,7 +684,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}settokenreset <time in seconds> "<reason>"
         Sets the time frame in which a user can spend their tokens until they're rate limited
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             try:
                 time = int(time)
             except:
@@ -626,7 +701,7 @@ class AutoMod(discord.Client):
         Sets the punishment to be used when a blacklisted word is detected
         Only accepts : 'kick', 'ban', 'mute', or 'nothing'
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             if 'kick' or 'ban' or 'mute' or 'nothing' not in new_punishment:
                 raise CommandError('Improper option inputted: {}'.format(new_punishment))
             config = self.server_index[server.id]
@@ -641,7 +716,7 @@ class AutoMod(discord.Client):
         Sets what the time in hours will be until a user is considered a 'long time memeber' of the server
         and be subjected to less strict filtering.
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             try:
                 time = int(time)
             except:
@@ -657,7 +732,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}setmodlogid <new channel ID> "<reason>"
         Sets the channel ID of the mod log!
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             try:
                 new_id = int(new_id)
             except:
@@ -673,7 +748,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}setserverlogid <new channel ID> "<reason>"
         Sets the channel ID of the server log!
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             try:
                 new_id = int(new_id)
             except:
@@ -684,12 +759,41 @@ class AutoMod(discord.Client):
             config[9] = new_id
             await self.write_to_modlog(message, author, server, reason)
 
+    async def handle_togglemodlog(self, message, author, server, reason=None):
+        """
+        Usage: {command_prefix}togglemodlog "<reason>"
+        Changes whether the mod log is to be used or not!
+        """
+        if self.has_roles(message.channel, author, server):
+            current = self.server_index[server.id][10]
+            if current is True:
+                self.server_index[server.id][10] = False
+            else:
+                self.server_index[server.id][10] = True
+                await self.write_to_modlog(message, author, server, reason)
+
+    async def handle_serverinfo(self, message, author, server):
+        """
+        Usage: {command_prefix}serverinfo
+        Gets all the info for the server the command was called from and PM it to
+        the person who used the command
+        """
+        if self.has_roles(message.channel, author, server):
+            config = self.server_index[server.id]
+            await self.send_message(author, '*{}\'s Server Config*\n**Created in bot version number: {}**\n----------------------------------\n'
+                                            'Number of Tokens: `{}`\n\nToken Reset Time: `{} second(s)`\n\nWhitelisted roles: `{}`\n\nWhitelisted Users: `{}`'
+                                            '\n\nBlacklisted words: `{}`\n\nAutomatic action to take: `{}`\n\nTime till user considered an old user: `{} hours`'
+                                            '\n\nChannel ID for Mod Log: `{}`\n\nChannel ID for Server Log: `{}`\n\nShould I use the Mod Log?: `{}`'
+                                            '\n\nIgnored Channel IDs: `{}`\n\nRoles which can use all my commands: `{}`\n\nUsers who can use all my commands: `{}`'
+                                            '\n\n**END OF SERVER CONFIG**'.format(server.name, config[0], config[1], config[2], config[3], config[4], config[5], config[6],
+                                                                                  config[7], config[8], config[9], config[10], config[12], config[14], config[15]))
+
     async def handle_alertrhino(self, message, author, server, string_arg):
         """
         Usage: {command_prefix}alertrhino "<message>"
         Used to send a message to SexualRhinoceros if the bot isn't working for one reason or another!
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             inv = await self.create_invite(server, max_uses=3, xkcd=True)
             print('Alert Command on Server: {}'.format(server.name))
             for servers in self.servers:
@@ -706,7 +810,7 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}ping
         Replies with "PONG!"; Use to test bot's responsiveness
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             return Response('PONG!', reply=True)
 
     async def handle_help(self, message, author, server):
@@ -714,13 +818,13 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}help
         Replies with the link to the commands page!
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             return Response('https://github.com/SexualRhinoceros/ModTools/wiki/Main#commands', reply=True)
 
     async def handle_info(self, message, author, server):
         """
         Usage: {command_prefix}info
-        Replies with "PONG!"; Use to test bot's responsiveness
+        Sends a whole buncha info pertaining to the bot to the chat!
         """
         return Response('I was coded by SexualRhinoceros and am currently on v{} ! \nFor documentation on my commands or info on how to get my in your'
                         ' server, check out this link! {}'.format(VERSION, DOCUMENTATION_FOR_BOT), reply=True)
@@ -730,12 +834,12 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}ignore <channel ID> "<reason>"
         Adds the channel ID to the list of ignored channels when outputting to the server log
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             try:
                 new_id = str(new_id)
             except:
                 raise CommandError('Non number detected: {}'.format(new_id))
-            if len(new_id) != 18:
+            if len(new_id) != 18 or len(new_id) != 17:
                 raise CommandError('Invalid Channel ID: {}'.format(new_id))
             config = self.server_index[server.id]
             config[12].append(new_id)
@@ -746,15 +850,18 @@ class AutoMod(discord.Client):
         Usage: {command_prefix}remignore <channel ID> "<reason>"
         Removes the channel ID from the list of ignored channels when outputting to the server log
         """
-        if self.has_roles(author, server):
+        if self.has_roles(message.channel, author, server):
             try:
                 new_id = int(new_id)
             except:
                 raise CommandError('Non number detected: {}'.format(new_id))
-            if len(new_id) != 18:
+            if len(str(new_id)) != 18:
                 raise CommandError('Invalid Channel ID: {}'.format(new_id))
             config = self.server_index[server.id]
-            config[12].remove(new_id)
+            try:
+                config[12].remove(str(new_id))
+            except ValueError:
+                raise CommandError('No such channel in ignore list : {}'.format(new_id))
             await self.write_to_modlog(message, author, server, reason)
 
     async def handle_broadcast(self, message, author, server, string_arg):
@@ -768,6 +875,26 @@ class AutoMod(discord.Client):
             return Response('its been done', reply=True)
         return
 
+    async def handle_dropdeadbeats(self, message, author, server):
+        """
+        Usage: {command_prefix}dropdeadbeats
+        Removes the bot from all dead beat servers who never register
+        """
+        if author.id == self.config.master_id:
+            server_leave_array = []
+            for server in self.servers:
+                if server.id not in self.server_index:
+                    rh1 = discord.utils.get(server.members, id=self.user.id)
+                    if datetime.utcnow() - timedelta(hours=24) > rh1.joined_at:
+                        server_leave_array.append(server)
+
+            if server_leave_array:
+                for dbserver in server_leave_array:
+                    print('Leaving Deadbeat Server : {}'.format(dbserver.name))
+                    await self.leave_server(dbserver)
+            return Response('its been done', reply=True)
+        return
+
     async def handle_gban(self, message, author, server, username):
         """
         Usage: {command_prefix}gban @Username
@@ -777,7 +904,7 @@ class AutoMod(discord.Client):
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
-            self.globalbans.add(user_id)
+            self.globalbans.add(str(user_id))
             write_file('globalbans.txt', self.globalbans)
             return Response('its been done', reply=True)
         return
@@ -870,6 +997,8 @@ class AutoMod(discord.Client):
         if message.author == self.user:
             return
 
+        if message.author.id in self.globalbans:
+            return
         if message.channel.is_private:
             try:
                 this = await self.handle_joinserver(message.author, message.content, join_flag=True)
@@ -901,7 +1030,10 @@ class AutoMod(discord.Client):
 
         message_content = message.content.strip()
         if message_content.startswith(self.config.command_prefix):
-            command, *args = shlex.split(message_content)
+            try:
+                command, *args = shlex.split(message_content)
+            except ValueError:
+                await self.send_message(message.channel, '```\nNo closing quote detected in message : {}\n```'.format(message.server.name))
 
             command = command[len(self.config.command_prefix):].lower().strip()
 
@@ -966,7 +1098,7 @@ class AutoMod(discord.Client):
                     return
                 try:
                     response = await handler(**handler_kwargs)
-                except Exception as e:
+                except discord.DiscordException as e:
                     response = None
                     print('Exception on {}({}) in channel {}\n\t{}'.format(message.server.name, message.server.id, message.channel.name, e))
                 if response and isinstance(response, Response):
@@ -1090,13 +1222,15 @@ class AutoMod(discord.Client):
                         except:
                             print('Cannot mute, no permissions : {}'.format(message.server.name))
                     elif 'nothing' in action:
-                        await self._write_to_modlog('join_flaged', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
+                        await self._write_to_modlog('flagged', message.author, message.server, 'the use of a blacklisted word : `{}`'.format(message.content))
                     else:
                         return
                     try:
                         await self.delete_message(message)
                     except discord.Forbidden:
                         print('Cannot delete, no permissions : {}'.format(message.server.name))
+                    except discord.NotFound:
+                        pass
 
 if __name__ == '__main__':
     bot = AutoMod()
