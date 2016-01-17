@@ -1,6 +1,6 @@
 [Credentials]
-Username = username@email.com
-Password = borked_is_a_nerd
+Username = exampleemail@example.com
+Password = examplepassword
 
 [Permissions]
 OwnerID = 112233445566778

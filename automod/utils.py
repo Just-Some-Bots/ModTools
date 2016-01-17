@@ -68,6 +68,7 @@ def do_slugify(string):
     for old, new in replacements:
         string = string.replace(old, new)
     slugify(string, separator='_')
+    string = string.replace('_', '')
     return string
 
 

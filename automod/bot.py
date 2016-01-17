@@ -58,11 +58,11 @@ class AutoMod(discord.Client):
         if register is False:
             if check_server.id not in self.server_index:
                 return
+        perms = user.permissions_in(channel)
         if len(check_server.roles) != 1:
             try:
                 for role in user.roles:
                     try:
-                        perms = user.permissions_in(channel)
                         if perms.manage_roles:
                             return True
                         elif role.name in self.server_index[check_server.id][14] or user.id in self.server_index[check_server.id][15]:
@@ -71,8 +71,10 @@ class AutoMod(discord.Client):
                         pass
             except:
                 return False
+        elif perms.manage_roles:
+            return True
         else:
-            raise CommandError('No roles detected on server {}'.format(check_server.name))
+            raise CommandError('No valid roles detected on server {}'.format(check_server.name))
 
     def is_checked(self, user, server):
         for role in user.roles:
@@ -394,6 +396,11 @@ class AutoMod(discord.Client):
         Mute the user indefinitley unless given a time, then only mute till the time is up
         """
         if self.has_roles(message.channel, author, server):
+            if time:
+                try:
+                    float(time)
+                except ValueError:
+                    raise CommandError('Time provided invalid:\n{}\n'.format(time))
             user_id = extract_user_id(username)
             if not user_id:
                 raise CommandError('Invalid user specified')
@@ -410,7 +417,7 @@ class AutoMod(discord.Client):
             except:
                 raise CommandError('Unable to mute user defined:\n{}\n'.format(username))
             if time:
-                await asyncio.sleep(float(time))
+                await asyncio.sleep()
                 muteeroles = asshole.roles
                 if mutedrole in muteeroles:
                     muteeroles.remove(mutedrole)
@@ -477,7 +484,7 @@ class AutoMod(discord.Client):
 
     async def handle_purge(self, message, author, server, channel, count, username=None, reason=None):
         """
-        Usage: {command_prefix}purge <# to purge> @UserName "<reason>"
+        Usage: {command_prefix}purge <number of messages to purge> @UserName "<reason>"
         Removes all messages from chat unless a user is specified;
         then remove all messages by the user.
         """
@@ -489,7 +496,11 @@ class AutoMod(discord.Client):
             if not username:
                 # logs = await self.logs_from(channel, int(count))
                 # for msg in logs:
-                async for msg in self.logs_from(channel, int(count)):
+                try:
+                    count = int(count)
+                except ValueError:
+                    raise CommandError('Invalid message count found : {}'.format(count))
+                async for msg in self.logs_from(channel, count):
                     await self.delete_message(msg)
             else:
                 user_id = extract_user_id(username)
@@ -836,13 +847,17 @@ class AutoMod(discord.Client):
         """
         if self.has_roles(message.channel, author, server):
             try:
-                new_id = str(new_id)
+                int(new_id)
             except:
                 raise CommandError('Non number detected: {}'.format(new_id))
-            if len(new_id) != 18 or len(new_id) != 17:
+            try:
+                channel = discord.utils.get(server.channels, id=new_id)
+                if not channel:
+                    int('this')
+            except:
                 raise CommandError('Invalid Channel ID: {}'.format(new_id))
             config = self.server_index[server.id]
-            config[12].append(new_id)
+            config[12].append(channel.id)
             await self.write_to_modlog(message, author, server, reason)
 
     async def handle_remignore(self, message, author, server, new_id, reason=None):
@@ -852,14 +867,18 @@ class AutoMod(discord.Client):
         """
         if self.has_roles(message.channel, author, server):
             try:
-                new_id = int(new_id)
+                int(new_id)
             except:
                 raise CommandError('Non number detected: {}'.format(new_id))
-            if len(str(new_id)) != 18:
+            try:
+                channel = discord.utils.get(server.channels, id=new_id)
+                if not channel:
+                    int('this')
+            except:
                 raise CommandError('Invalid Channel ID: {}'.format(new_id))
             config = self.server_index[server.id]
             try:
-                config[12].remove(str(new_id))
+                config[12].remove(channel.id)
             except ValueError:
                 raise CommandError('No such channel in ignore list : {}'.format(new_id))
             await self.write_to_modlog(message, author, server, reason)
@@ -936,8 +955,8 @@ class AutoMod(discord.Client):
                 if server.id not in self.server_index:
                     try:
                         await self.send_message(server, 'Hello! Just a reminder from your friendly robo-Moderator that I don\'t have any function'
-                                                        ' until someone goes through the registration process with me!\nIf a Moderator with a role named '
-                                                        '`{}` would run the command `{}register`, I can start helping keep things clean!'.format(
+                                                        ' until someone goes through the registration process with me!\nIf a Moderator with the `{}` permission'
+                                                        ' would run the command `{}register`, I can start helping keep things clean!'.format(
                                                             BOT_HANDLER_ROLE, self.config.command_prefix))
                     except discord.Forbidden:
                         print('Cannot remind, server\'s default channel is locked : {}'.format(server.name))
@@ -964,7 +983,7 @@ class AutoMod(discord.Client):
     async def on_server_join(self, server):
         try:
             await self.send_message(server.default_channel, 'Hello! I\'m your friendly robo-Moderator and was invited by <@{}> to make the lives of everyone easier!'
-                                                            '\nIf a Moderator with a role named `{}` would run the command `{}register`, I can start helping'
+                                                            '\nIf a Moderator with the `{}` permission would run the command `{}register`, I can start helping'
                                                             ' keep things clean!'.format(
                                                                 self.user_invite_dict[server.id], BOT_HANDLER_ROLE, self.config.command_prefix))
         except discord.Forbidden:
@@ -1025,23 +1044,33 @@ class AutoMod(discord.Client):
                         del self.register_instances[message.author.id]
                     return
             else:
-                await self.send_message(message.channel, 'You cannot use this bot in private messages.')
+                await self.send_message(message.author, 'You cannot use this bot in private messages.')
             return
-
+        if self.user in message.mentions:
+            print('[{} : {}]{} says \'{}\''.format(message.server.name, message.channel.name, message.author.name, message.content))
         message_content = message.content.strip()
         if message_content.startswith(self.config.command_prefix):
             try:
                 command, *args = shlex.split(message_content)
             except ValueError:
-                await self.send_message(message.channel, '```\nNo closing quote detected in message : {}\n```'.format(message.server.name))
+                try:
+                    await self.send_message(message.channel, '```\nNo closing quote detected in message : {}\n```'.format(message.server.name))
+                except:
+                    await self.send_message(message.author, 'I am unable to send messages in that channel. Please give me permissions to send messages'
+                                                                ' before you continue!')
+                return
 
             command = command[len(self.config.command_prefix):].lower().strip()
 
             handler = getattr(self, 'handle_%s' % command, None)
             for register_instance in self.register_instances.values():
                 if register_instance.server.id == message.server.id:
-                    await self.send_message(message.channel, 'You cannot use the bot until it has been set up. <@{}> is in the process of'
+                    try:
+                        await self.send_message(message.channel, 'You cannot use the bot until it has been set up. <@{}> is in the process of'
                                                              'configuring AutoModerator!'.format(register_instance.user.id))
+                    except:
+                        await self.send_message(message.author, 'I am unable to send messages in that channel. Please give me permissions to send messages'
+                                                                ' before you continue!')
                     return
             if not handler:
                 return
