@@ -5,6 +5,7 @@ from slugify import slugify
 from automod.constants import MUTED_IMGUR_SETUP_LINK, DOCUMENTATION_FOR_BOT
 from automod.response import Response
 from automod.version import VERSION
+from automod.constants import REGISTER_WORD
 
 
 class Register(object):
@@ -41,7 +42,7 @@ class Register(object):
         self.server_config_build.append({})                     # *13   DICT; A dict that holds the IDs of muted users as keys and the datetime of the mute as values
         self.server_config_build.append([])                     # 14    LIST; * Roles which are given the ability to command the bot
         self.server_config_build.append(['77511942717046784'])  # 15    LIST; Users who are given the ability to command the bot
-        self.server_config_build.append(None)                   # 16    NONE OBJECT; Reserved for future use
+        self.server_config_build.append([{}, {}])               # 16    LIST; Used for dynamic permissions, first dict holds allowed permissions, while the second holds denied permissions.
         self.server_config_build.append(None)                   # 17    NONE OBJECT; Reserved for future use
 
     async def do_next_step(self, args=None):
@@ -71,7 +72,7 @@ class Register(object):
                         )
 
     async def step_1(self, args):
-        if 'banana' not in args:
+        if REGISTER_WORD not in args:
             return Response('To continue the Registration process, you need to go to {} and read through everything. '
                             'Follow the directions there and you\'ll be able to continue!'.format(DOCUMENTATION_FOR_BOT),
                             pm=True
@@ -80,7 +81,7 @@ class Register(object):
             self.step = 2
             return Response('Great! Now that you\'ve read everything, time for the configuration! \n\nPlease make sure you respond with **ONLY** the information needed. '
                             'Also, use `!skip` if you don\'t wish to complete a step or `!restart`if you want to start over!\nFor the first step, I\'ll need to know which '
-                            'roles which you\'d like me omit from my filtering\n\t`example input: Moderators, Admin, Trusted`',
+                            'roles which you\'d like me omit from my filtering. This step can be skipped!\n\t`example input: Moderators, Admin, Trusted`',
                             pm=True
                             )
 
@@ -97,7 +98,7 @@ class Register(object):
                             pm=True)
         self.step = 3
         return Response('Okay, got it. Added {} to the list of white listed roles!\n\nNext up, I need to know which user groups you\'d like me to '
-                        'take orders from! They\'ll have full access to all of my commands.'
+                        'take orders from! They\'ll have full access to all of my commands. This step can be skipped!'
                         '\n\t`example input: Moderators, Admin, Developers`'.format(
                             args
                         ),
@@ -150,7 +151,7 @@ class Register(object):
             return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again!',
                             pm=True)
         self.step = 6
-        return Response('Okay, got it. Added {} as the number of user given tokens per reset period!\n\nNext up is the word filter'
+        return Response('Okay, got it. Added {} as the number of user given tokens per reset period!\n\nNext up is the word filter. This step can be skipped!'
                         '\n\t`example input: twitch.tv, discord.gg, faggots`'.format(
                             this
                         ),
@@ -199,20 +200,43 @@ class Register(object):
         if '!restart' in args:
             return await self.restart()
         try:
+            if int(args[0]) > 10000000:
+                return Response('The number you entered is too large! Please enter something more reasonable!\nPlease try again!',
+                            pm=True)
             self.server_config_build[7] = int(args[0])
         except:
             return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again!',
                             pm=True)
         self.step = 9
-        return Response('Okay, got it. Added {} as the number of hours till a user is considered a long time member!\n\nNext up is whether you want'
-                        'moderator action reasons to be reported! I accept `True` or `False` as inputs'
-                        '\n\t`example input: True`'.format(
+        return Response('Okay, got it. Added {} as the number of hours till a user is considered a long time member!\n\nNext up is the channel you\'d'
+                        'like all my announcements of changes to go to!\nThese will be sent when Rhino needs to communicate with the moderation teams '
+                        'who use the bot about new commands, new features, ect.\nMake sure its sent as the Channel ID which can be found by putting a `\` before the channel tag `ie \#channel_name`'
+                        '\nThis step can be skipped!\n\t`example input: 135866654117724160`'.format(
                             args[0]
                         ),
                         pm=True
                         )
 
     async def step_9(self, args):
+        if '!restart' in args:
+            return await self.restart()
+        if args and '!skip' not in args:
+            self.server_config_build[17] = args[0]
+        elif '!skip' in args:
+            args = 'the default server channel since you decided to skip'
+        else:
+            return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again!',
+                            pm=True)
+        self.step = 10
+        return Response('Okay, got it. Added {} as the channel to send all my broadcasts to!\n\nNext up is whether you want '
+                        'moderator action reasons to be reported! I accept `True` or `False` as inputs'
+                        '\n\t`example input: True`'.format(
+                            args
+                        ),
+                        pm=True
+                        )
+
+    async def step_10(self, args):
         if '!restart' in args:
             return await self.restart()
         if 'True' in args:
@@ -224,16 +248,16 @@ class Register(object):
         else:
             return Response('I didn\'t quite catch that! The input I picked up doesn\'t seem to be correct!\nPlease try again!',
                             pm=True)
-        self.step = 10
+        self.step = 11
         return Response('Okay, got it. I {} report action reasons!\n\nFinally, I\'ll need to know which channels you\'d like me to ignore all together.'
-                        '\nMake sure its sent as the Channel ID which can be found by putting a `\` before the channel tag `ie \#channel_name`'
+                        '\nMake sure its sent as the Channel ID which can be found by putting a `\` before the channel tag `ie \#channel_name` This step can be skipped!'
                         '\n\t`example input: 130787272781070337, 77514836912644096`'.format(
                             args
                         ),
                         pm=True
                         )
 
-    async def step_10(self, args):
+    async def step_11(self, args):
         if '!restart' in args:
             return await self.restart()
         if args and '!skip' not in args:

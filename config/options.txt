@@ -1,9 +1,8 @@
 [Credentials]
-Username = exampleemail@example.com
-Password = examplepassword
+Token = TOKEN HERE
 
 [Permissions]
-OwnerID = 112233445566778
+OwnerID = 77511942717046784
 
 [Chat]
-CommandPrefix = !
+CommandPrefix = !!
